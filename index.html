@@ -660,7 +660,7 @@
             const rows = [];
             for (const c in weeklyBooksDb)
                 for (const w in weeklyBooksDb[c]) {
-                    const wi = Number(w);
+                    const wi = Number(String(w).replace(/\D/g, ''));
                     if (!Number.isNaN(wi)) rows.push({ class_name: c, week_idx: wi, books: weeklyBooksDb[c][w] || [] });
                 }
             return rows;
@@ -669,7 +669,7 @@
             const rows = [];
             for (const c in classNotesDb)
                 for (const w in classNotesDb[c]) {
-                    const wi = Number(w);
+                    const wi = Number(String(w).replace(/\D/g, ''));
                     if (!Number.isNaN(wi)) rows.push({ class_name: c, week_idx: wi, note: classNotesDb[c][w] || '' });
                 }
             return rows;
@@ -853,7 +853,7 @@
                 }
                 if (notes.data) {
                     classNotesDb = {};
-                    notes.data.forEach(r => { if (!classNotesDb[r.class_name]) classNotesDb[r.class_name] = {}; classNotesDb[r.class_name][r.week_idx] = r.note || ''; });
+                    notes.data.forEach(r => { if (!classNotesDb[r.class_name]) classNotesDb[r.class_name] = {}; classNotesDb[r.class_name][`w${r.week_idx}`] = r.note || ''; });
                 }
                 if (timeline.data && timeline.data.length) {
                     globalTimelineConfig = timeline.data.map(r => ({ weekIdx: r.week_idx, label: r.label, mode: r.mode }));
@@ -1071,6 +1071,7 @@
                 .replace(/\{이름\}/g, vars.이름 ?? '')
                 .replace(/\{학교\}/g, vars.학교 ?? '')
                 .replace(/\{일차\}/g, vars.일차 ?? '')
+                .replace(/\{주차\}/g, vars.일차 ?? '')
                 .replace(/\{점수\}/g, vars.점수 ?? '')
                 .replace(/\{링크\}/g, vars.링크 ?? '');
         }
@@ -1764,12 +1765,13 @@
             `; container.appendChild(div);
         }
 
-        function executeSaveClassNotes() {
+        async function executeSaveClassNotes() {
             const textarea = document.getElementById('dr-classnotes-textarea');
             if (!textarea) return;
             const weekNum = getWeekNumber(currentSelectedWeekIdx);
             if (!classNotesDb[currentGlobalClassFilter]) classNotesDb[currentGlobalClassFilter] = {};
             classNotesDb[currentGlobalClassFilter][`w${weekNum}`] = textarea.value;
+            await persistNow();
             alert("수업일지가 저장되었습니다.");
             refreshCoreEngine();
         }
