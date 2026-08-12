@@ -575,6 +575,7 @@
                     <h4 id="parent-chart-section-title" class="text-xs font-black text-slate-800">실전 파이널 모의고사 1~12회 전체 누적 성적 추이 리포트</h4>
                     <div class="h-40 flex items-end justify-between px-6 pt-6 border-b border-slate-300 relative bg-white rounded-xl" id="parent-chart-visualization-track"></div>
                     <div class="flex justify-between px-6 text-[8px] font-black text-slate-400 font-mono" id="parent-chart-labels-track"></div>
+                    <div id="pr-exam-cumulative-list" class="mt-2"></div>
                 </div>
             </div>
         </section>
@@ -3361,6 +3362,9 @@
                             if (clinicExamLines) examLines += `<div class="border-t border-slate-200 mt-1 pt-1">${clinicExamLines}</div>`;
                             cumList.innerHTML = `<div class="border-t border-slate-200 pt-3 mt-1"><div class="text-[11px] font-black text-rose-700 mb-2"><i class="fa-solid fa-list-ol mr-1"></i> 회차별 점수</div>${examLines}</div>`;
                         }
+                        // 학부모 포털에도 동일 렌더링
+                        const prCumList = document.getElementById('pr-exam-cumulative-list');
+                        if (prCumList && cumList) prCumList.innerHTML = cumList.innerHTML;
                     } else {
                         const __notHeldNow = __isWtNotHeld(currentGlobalClassFilter, currentSelectedWeekIdx);
                         let isAbsent = rec.wtAbsent || false;
@@ -3401,6 +3405,8 @@
                     if (prWeeklyGrid) prWeeklyGrid.innerHTML = '';
                     const prReportBtn = document.getElementById('pr-analysis-report-btn');
                     if (prReportBtn) prReportBtn.className = 'hidden mt-3';
+                    const prCumList = document.getElementById('pr-exam-cumulative-list');
+                    if (prCumList) prCumList.innerHTML = '';
                 }
                 // 클리닉 누적 이력 렌더링 (학생·학부모)
                 renderClinicHistoryZone('st-clinic-history-zone', targetSt);
