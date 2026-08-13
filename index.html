@@ -143,7 +143,7 @@
         <section id="panel-director" class="space-y-4 hidden">
             <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 border-b border-slate-100 pb-2">
-                    <h2 class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i class="fa-solid fa-sliders text-indigo-600"></i> 차시별 모드 설정</h2>
+                    <h2 class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i class="fa-solid fa-sliders text-indigo-600"></i> 차시별 모드 설정 <span id="dr-schedule-class-badge" class="text-indigo-600 ml-1"></span></h2>
                     <div class="flex items-center space-x-1.5 bg-slate-50 px-3 py-1 rounded-xl border">
                         <label class="text-[10px] font-black text-slate-600"><i class="fa-solid fa-calendar-days text-indigo-500"></i> 이 반 운영 차시 조절:</label>
                         <select id="dr-season-max-weeks-select" onchange="handleSeasonMaxWeeksChange(this.value)" class="bg-white border text-slate-900 font-bold text-[11px] rounded p-0.5">
@@ -698,15 +698,17 @@
                 __up('weekly_books', __mapBooks(), 'class_name,week_idx'),
                 __up('class_notes', __mapNotes(), 'class_name,week_idx'),
                 __up('timeline_config', globalTimelineConfig.map(c => ({ week_idx: c.weekIdx, label: c.label, mode: c.mode })), 'week_idx'),
+                // 반별 차시 설정은 classScheduleConfig로 app_config에 저장됨
                 __up('app_config', [
                     { key: 'globalSeasonMaxWeeks', value: globalSeasonMaxWeeks },
                     { key: 'classMaxWeeks', value: classMaxWeeksDb },
                     { key: 'wtNotHeld', value: wtNotHeld },
                     { key: 'weeklyHw', value: weeklyHwDb },
                     { key: 'clinicNotes', value: clinicNotesDb },
-                    { key: 'scheduleStartDay', value: scheduleStartDay },
+                    { key: 'scheduleStartDay', value: '월' },  // legacy — 실제 반별 값은 classScheduleConfig에 저장
+                    { key: 'classScheduleConfig', value: classScheduleConfig },
                     { key: 'currentActiveWeekIdx', value: currentActiveWeekIdx },
-                    { key: 'scheduleStartDate', value: scheduleStartDate },
+                    { key: 'scheduleStartDate', value: '' },  // legacy — 실제 반별 값은 classScheduleConfig에 저장
                     { key: 'clinicWeeklyDb', value: clinicWeeklyDb },
                     { key: 'clinicExamDb', value: clinicExamDb },
                     { key: 'accessTokens', value: accessTokens },
@@ -738,7 +740,7 @@
                     books: __mapBooks(),
                     notes: __mapNotes(),
                     timeline: globalTimelineConfig,
-                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, scheduleStartDay, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb]
+                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, classScheduleConfig, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb]
                 });
             } catch (e) { return null; }
         }
@@ -887,9 +889,27 @@
                 if (cfgMap.wtNotHeld && typeof cfgMap.wtNotHeld === 'object') wtNotHeld = cfgMap.wtNotHeld;
                 if (cfgMap.weeklyHw && typeof cfgMap.weeklyHw === 'object') weeklyHwDb = cfgMap.weeklyHw;
                 if (cfgMap.clinicNotes && typeof cfgMap.clinicNotes === 'object') clinicNotesDb = cfgMap.clinicNotes;
-                if (cfgMap.scheduleStartDay) scheduleStartDay = cfgMap.scheduleStartDay;
+                // 반별 스케줄 설정 복원
+                if (cfgMap.classScheduleConfig && typeof cfgMap.classScheduleConfig === 'object') {
+                    classScheduleConfig = cfgMap.classScheduleConfig;
+                }
+                // legacy 마이그레이션: 기존 전역 설정이 있고 classScheduleConfig가 비어있으면 모든 반에 복사
+                if (Object.keys(classScheduleConfig).length === 0) {
+                    const legacyDay = cfgMap.scheduleStartDay || '월';
+                    const legacyDate = cfgMap.scheduleStartDate || '';
+                    const legacyActive = cfgMap.currentActiveWeekIdx || 1;
+                    // globalTimelineConfig는 위에서 이미 복원됨
+                    for (const cn in classLinksDb) {
+                        classScheduleConfig[cn] = {
+                            startDate: legacyDate,
+                            startDay: legacyDay,
+                            timeline: globalTimelineConfig.map(c => ({ weekIdx: c.weekIdx, label: c.label, mode: c.mode })),
+                            activeWeekIdx: legacyActive
+                        };
+                    }
+                }
+                // currentActiveWeekIdx는 현재 선택된 반 기준으로 설정
                 if (cfgMap.currentActiveWeekIdx) currentActiveWeekIdx = cfgMap.currentActiveWeekIdx;
-                if (cfgMap.scheduleStartDate) scheduleStartDate = cfgMap.scheduleStartDate;
                 if (cfgMap.clinicWeeklyDb && typeof cfgMap.clinicWeeklyDb === 'object') clinicWeeklyDb = cfgMap.clinicWeeklyDb;
                 if (cfgMap.clinicExamDb && typeof cfgMap.clinicExamDb === 'object') clinicExamDb = cfgMap.clinicExamDb;
                 if (cfgMap.accessTokens && typeof cfgMap.accessTokens === 'object') accessTokens = cfgMap.accessTokens;
@@ -922,17 +942,20 @@
 
         // ── 현재 활성 차시 (1차시 시작일 기반 자동 결정) ──
         let currentActiveWeekIdx = 1;
-        let scheduleStartDate = '';  // 1차시 시작일 (YYYY-MM-DD)
+        let scheduleStartDate = '';  // legacy — 실제 반별 값은 classScheduleConfig에 저장
 
-        // 1차시 시작일로부터 각 차시의 날짜를 계산
-        function getScheduleDates(maxIdx) {
-            if (!scheduleStartDate) return {};
+        // 1차시 시작일로부터 각 차시의 날짜를 계산 (반별 독립)
+        function getScheduleDates(maxIdx, className) {
+            const cn = className || currentGlobalClassFilter;
+            const sd = getClassStartDate(cn);
+            if (!sd) return {};
             const dates = {};
-            let d = new Date(scheduleStartDate + 'T00:00:00');
+            let d = new Date(sd + 'T00:00:00');
             if (isNaN(d.getTime())) return {};
             dates[1] = new Date(d);
             // 월→금 = +4일, 금→월 = +3일
-            const gaps = scheduleStartDay === "월" ? [4, 3] : [3, 4];
+            const sday = getClassStartDay(cn);
+            const gaps = sday === "월" ? [4, 3] : [3, 4];
             for (let i = 2; i <= maxIdx; i++) {
                 d.setDate(d.getDate() + gaps[(i - 2) % 2]);
                 dates[i] = new Date(d);
@@ -940,11 +963,12 @@
             return dates;
         }
 
-        // 오늘 날짜 기준으로 현재 활성 차시 자동 계산
-        function calcActiveWeekIdx() {
-            const maxW = getTemplateMaxWeeks();
-            const dates = getScheduleDates(maxW);
-            if (Object.keys(dates).length === 0) return currentActiveWeekIdx;
+        // 오늘 날짜 기준으로 현재 활성 차시 자동 계산 (반별 독립)
+        function calcActiveWeekIdx(className) {
+            const cn = className || currentGlobalClassFilter;
+            const maxW = getClassMaxWeeks(cn);
+            const dates = getScheduleDates(maxW, cn);
+            if (Object.keys(dates).length === 0) return getClassActiveWeekIdx(cn);
             const today = new Date(); today.setHours(0,0,0,0);
             let result = 1;
             for (let i = 1; i <= maxW; i++) {
@@ -973,6 +997,46 @@
         ];
 
         let currentSelectedWeekIdx = 1;
+
+        // ── 반별 스케줄 설정 (시작일·시작요일·차시모드·활성차시를 반마다 독립 관리) ──
+        let classScheduleConfig = {};
+        // 구조: { "반이름": { startDate: "YYYY-MM-DD", startDay: "월"|"금", timeline: [{weekIdx, label, mode}, ...], activeWeekIdx: 1 }, ... }
+
+        function __ensureClassSchedule(className) {
+            if (!classScheduleConfig[className]) {
+                classScheduleConfig[className] = {
+                    startDate: '',
+                    startDay: '월',
+                    timeline: globalTimelineConfig.map(c => ({ weekIdx: c.weekIdx, label: c.label, mode: c.mode })),
+                    activeWeekIdx: 1
+                };
+            }
+            // 슬롯 수가 globalTimelineConfig보다 적으면 보충
+            const t = classScheduleConfig[className].timeline;
+            for (const g of globalTimelineConfig) {
+                if (!t.find(c => c.weekIdx === g.weekIdx)) {
+                    t.push({ weekIdx: g.weekIdx, label: g.label, mode: g.mode });
+                }
+            }
+            t.sort((a, b) => a.weekIdx - b.weekIdx);
+            return classScheduleConfig[className];
+        }
+
+        function getClassTimeline(className) {
+            return __ensureClassSchedule(className).timeline;
+        }
+        function getClassStartDate(className) {
+            return __ensureClassSchedule(className).startDate || '';
+        }
+        function getClassStartDay(className) {
+            return __ensureClassSchedule(className).startDay || '월';
+        }
+        function getClassActiveWeekIdx(className) {
+            return __ensureClassSchedule(className).activeWeekIdx || 1;
+        }
+        function setClassActiveWeekIdx(className, idx) {
+            __ensureClassSchedule(className).activeWeekIdx = idx;
+        }
 
         // 방학특강(vacation) 모드는 내신대비(exam)와 기능적으로 동일 — 이 헬퍼로 통합 체크
         function __isExamLike(mode) { return mode === 'exam'; }
@@ -1007,7 +1071,7 @@
         //  - 금요일 날짜가 하나도 없으면 null → 호출부에서 기존 방식('마지막 본 일차')으로 폴백
         function __weekIdxForToday() {
             const now = new Date();
-            const dated = globalTimelineConfig
+            const dated = getClassTimeline(currentGlobalClassFilter)
                 .filter(c => weekFridays[String(c.weekIdx)])
                 .sort((a, b) => a.weekIdx - b.weekIdx);
             if (dated.length === 0) return null;
@@ -1029,8 +1093,9 @@
 
         // 그래프 아래 축 라벨용 짧은 일차 이름
         // "7월2일차" → "7월2일차",  "6월 1일차 (실모1-3)" → "6월 1일차"  (괄호 설명은 떼고 씀)
-        function __shortWeekLabel(weekIdx) {
-            const cfg = globalTimelineConfig.find(c => c.weekIdx === weekIdx);
+        function __shortWeekLabel(weekIdx, className) {
+            const cn = className || currentGlobalClassFilter;
+            const cfg = getClassTimeline(cn).find(c => c.weekIdx === weekIdx);
             if (!cfg || !cfg.label) return `${weekIdx}주`;
             const s = String(cfg.label).replace(/\s*[（(].*?[)）]\s*/g, '').trim();
             return s || `${weekIdx}주`;
@@ -1046,7 +1111,6 @@
             const v = classMaxWeeksDb[className];
             return (v != null) ? parseInt(v, 10) : globalSeasonMaxWeeks;
         }
-        // 스케줄러(차시별 모드/라벨 편집기)는 라벨·모드가 전 반 공통이므로, 어느 반에서든 편집 가능하도록
         // 모든 반 중 가장 큰 운영 일차까지 노출한다.
         function getTemplateMaxWeeks() {
             let m = globalSeasonMaxWeeks;
@@ -1119,7 +1183,7 @@
 
         // ── 요일 자동배정 시스템 ──
         // startDay: "월" 이면 1차시=월, 2차시=금, 3차시=월, ... / "금"이면 1차시=금, 2차시=월, ...
-        let scheduleStartDay = "월";
+        let scheduleStartDay = "월";  // legacy — 실제 반별 값은 classScheduleConfig에 저장
 
         // 주차별 클리닉 참석 DB: { className: { weekNum: { studentId: "참석"|"불참"|"" } } }
         let clinicWeeklyDb = {};
@@ -1140,24 +1204,27 @@
         }
 
         // 이 주차가 시험대비 모드인지 판별 (주차 내 차시 중 하나라도 exam이면 true)
-        function isExamWeek(weekNum) {
-            const maxW = getClassMaxWeeks(currentGlobalClassFilter);
-            const groups = getClinicWeekGroups(maxW);
+        function isExamWeek(weekNum, className) {
+            const cn = className || currentGlobalClassFilter;
+            const maxW = getClassMaxWeeks(cn);
+            const groups = getClinicWeekGroups(maxW, cn);
             const g = groups.find(gr => gr.weekNum === weekNum);
             if (!g) return false;
             return g.weekIdxes.some(w => {
-                const cfg = globalTimelineConfig.find(c => c.weekIdx === w);
+                const tl = getClassTimeline(cn);
+                const cfg = tl.find(c => c.weekIdx === w);
                 return cfg && __isExamLike(cfg.mode);
             });
         }
 
         // 클리닉 실모 회차 계산: 시험대비 주차들 중 몇 번째인지
-        function getClinicExamRound(weekNum) {
-            const maxW = getClassMaxWeeks(currentGlobalClassFilter);
-            const groups = getClinicWeekGroups(maxW);
+        function getClinicExamRound(weekNum, className) {
+            const cn = className || currentGlobalClassFilter;
+            const maxW = getClassMaxWeeks(cn);
+            const groups = getClinicWeekGroups(maxW, cn);
             let count = 0;
             for (const g of groups) {
-                if (isExamWeekByGroup(g)) {
+                if (isExamWeekByGroup(g, cn)) {
                     count++;
                     if (g.weekNum === weekNum) return count;
                 }
@@ -1165,22 +1232,28 @@
             return count;
         }
 
-        function isExamWeekByGroup(g) {
+        function isExamWeekByGroup(g, className) {
+            const cn = className || currentGlobalClassFilter;
+            const tl = getClassTimeline(cn);
             return g.weekIdxes.some(w => {
-                const cfg = globalTimelineConfig.find(c => c.weekIdx === w);
+                const cfg = tl.find(c => c.weekIdx === w);
                 return cfg && __isExamLike(cfg.mode);
             });
         }
 
-        function getDayForWeekIdx(weekIdx) {
-            const days = scheduleStartDay === "월" ? ["월", "금"] : ["금", "월"];
+        function getDayForWeekIdx(weekIdx, className) {
+            const cn = className || currentGlobalClassFilter;
+            const sday = getClassStartDay(cn);
+            const days = sday === "월" ? ["월", "금"] : ["금", "월"];
             return days[(weekIdx - 1) % 2];
         }
 
         // 주차별 차시 그룹: 월 시작이면 (1,2),(3,4),... / 금 시작이면 (1),(2,3),(4,5),...
-        function getClinicWeekGroups(maxIdx) {
+        function getClinicWeekGroups(maxIdx, className) {
             if (!maxIdx || maxIdx < 1) return [];
-            if (scheduleStartDay === "월") {
+            const cn = className || currentGlobalClassFilter;
+            const sday = getClassStartDay(cn);
+            if (sday === "월") {
                 let groups = [];
                 for (let i = 1; i <= maxIdx; i += 2) {
                     let idxes = [i];
@@ -1199,14 +1272,14 @@
             }
         }
 
-        function getWeekNumber(weekIdx) {
-            const groups = getClinicWeekGroups(weekIdx);
+        function getWeekNumber(weekIdx, className) {
+            const groups = getClinicWeekGroups(weekIdx, className);
             for (const g of groups) { if (g.weekIdxes.includes(weekIdx)) return g.weekNum; }
             return 1;
         }
 
-        function getWeekPair(weekIdx) {
-            const groups = getClinicWeekGroups(weekIdx + 10);
+        function getWeekPair(weekIdx, className) {
+            const groups = getClinicWeekGroups(weekIdx + 10, className);
             for (const g of groups) { if (g.weekIdxes.includes(weekIdx)) return g.weekIdxes; }
             return [weekIdx];
         }
@@ -1224,25 +1297,34 @@
 
         function applyStartDaySchedule() {
             const sel = document.getElementById('dr-start-day-select');
-            if (sel) scheduleStartDay = sel.value;
+            if (sel) {
+                __ensureClassSchedule(currentGlobalClassFilter).startDay = sel.value;
+            }
             updateDayPreview();
-            currentActiveWeekIdx = calcActiveWeekIdx();
+            const newActive = calcActiveWeekIdx(currentGlobalClassFilter);
+            setClassActiveWeekIdx(currentGlobalClassFilter, newActive);
+            currentActiveWeekIdx = newActive;
             refreshCoreEngine();
         }
 
         function applyStartDate() {
             const input = document.getElementById('dr-start-date-input');
-            if (input) scheduleStartDate = input.value;
+            if (input) {
+                __ensureClassSchedule(currentGlobalClassFilter).startDate = input.value;
+            }
             updateDayPreview();
-            currentActiveWeekIdx = calcActiveWeekIdx();
+            const newActive = calcActiveWeekIdx(currentGlobalClassFilter);
+            setClassActiveWeekIdx(currentGlobalClassFilter, newActive);
+            currentActiveWeekIdx = newActive;
             refreshCoreEngine();
         }
 
         function updateDayPreview() {
             const el = document.getElementById('dr-day-preview');
             if (!el) return;
-            const maxW = getTemplateMaxWeeks();
-            const dates = getScheduleDates(maxW);
+            const cn = currentGlobalClassFilter;
+            const maxW = getClassMaxWeeks(cn);
+            const dates = getScheduleDates(maxW, cn);
             let preview = [];
             for (let i = 1; i <= Math.min(maxW, 6); i++) {
                 let dateStr = '';
@@ -1250,13 +1332,13 @@
                     const m = dates[i].getMonth() + 1, d = dates[i].getDate();
                     dateStr = ` ${m}/${d}`;
                 }
-                preview.push(`${i}차시(${getDayForWeekIdx(i)}${dateStr})`);
+                preview.push(`${i}차시(${getDayForWeekIdx(i, cn)}${dateStr})`);
             }
             if (maxW > 6) preview.push('…');
 
             let activeInfo = '';
-            if (scheduleStartDate) {
-                const active = calcActiveWeekIdx();
+            if (getClassStartDate(cn)) {
+                const active = calcActiveWeekIdx(cn);
                 activeInfo = ` | 📍 현재: ${active}차시`;
             }
             el.innerText = preview.join(' → ') + activeInfo;
@@ -1269,7 +1351,7 @@
             const zone = document.getElementById('dr-clinic-attendance-zone'); if (!zone) return;
             zone.innerHTML = '';
             const maxW = getClassMaxWeeks(currentGlobalClassFilter);
-            const groups = getClinicWeekGroups(maxW);
+            const groups = getClinicWeekGroups(maxW, currentGlobalClassFilter);
             const students = studentDb.filter(s => s.className === currentGlobalClassFilter);
             if (groups.length === 0 || students.length === 0) {
                 zone.innerHTML = '<div class="text-slate-400 text-[11px] text-center py-3">차시가 설정되지 않았거나 학생이 없습니다.</div>';
@@ -1277,7 +1359,7 @@
             }
 
             // 현재 차시 기준 주차로 자동 선택
-            const autoWeek = getWeekNumber(currentSelectedWeekIdx);
+            const autoWeek = getWeekNumber(currentSelectedWeekIdx, currentGlobalClassFilter);
             if (!groups.find(g => g.weekNum === __clinicSelectedWeek)) __clinicSelectedWeek = autoWeek;
 
             // 주차 탭
@@ -1297,11 +1379,11 @@
             }).join('');
 
             const activeGroup = groups.find(g => g.weekNum === __clinicSelectedWeek);
-            const idxLabels = activeGroup ? activeGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w)})`).join(', ') : '';
+            const idxLabels = activeGroup ? activeGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w, currentGlobalClassFilter)})`).join(', ') : '';
 
             // 학생 그리드 (가로 배치, 컴팩트)
-            const isExam = isExamWeek(__clinicSelectedWeek);
-            const clinicExamRound = isExam ? getClinicExamRound(__clinicSelectedWeek) : 0;
+            const isExam = isExamWeek(__clinicSelectedWeek, currentGlobalClassFilter);
+            const clinicExamRound = isExam ? getClinicExamRound(__clinicSelectedWeek, currentGlobalClassFilter) : 0;
 
             let gridHtml = students.map(st => {
                 const att = getClinicAtt(currentGlobalClassFilter, __clinicSelectedWeek, st.id);
@@ -1361,7 +1443,7 @@
         function renderClinicHistoryZone(zoneId, student) {
             const zone = document.getElementById(zoneId); if (!zone || !student) return;
             const maxW = getClassMaxWeeks(student.className);
-            const groups = getClinicWeekGroups(maxW);
+            const groups = getClinicWeekGroups(maxW, student.className);
             if (groups.length === 0) { zone.innerHTML = ''; return; }
 
             let html = '<div class="text-[11px] font-black text-slate-700 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> 클리닉 참석 이력</div>';
@@ -1380,7 +1462,7 @@
 
                 // 클리닉 실모 점수 (시험대비 주차일 때)
                 let clinicExamHtml = '';
-                if (isExamWeekByGroup(g)) {
+                if (isExamWeekByGroup(g, student.className)) {
                     const ceScore = getClinicExamScore(student.className, g.weekNum, student.id);
                     if (ceScore !== null && ceScore !== undefined) {
                         const ceAvg = classClinicExamAvg(student.className, g.weekNum);
@@ -1536,6 +1618,16 @@
             // 일차 조절 드롭다운을 이 반의 값으로 표시
             const maxSel = document.getElementById('dr-season-max-weeks-select');
             if (maxSel) maxSel.value = String(maxW);
+            // 반별 스케줄 설정을 UI에 반영
+            currentActiveWeekIdx = getClassActiveWeekIdx(className);
+            const __schedBadge = document.getElementById('dr-schedule-class-badge');
+            if (__schedBadge) __schedBadge.innerText = `[${className}]`;
+            const __dsDay = document.getElementById('dr-start-day-select');
+            if (__dsDay) __dsDay.value = getClassStartDay(className);
+            const __dsDate = document.getElementById('dr-start-date-input');
+            if (__dsDate) __dsDate.value = getClassStartDate(className);
+            renderDirectorSchedulerGrid();  // 차시 모드/라벨 해당 반 것으로 다시 그리기
+            updateDayPreview();
             renderTimelineTabs();  // 일차 탭 다시 그리기(범위 반영)
 
             let hasBookZone = document.getElementById('dr-coursebooks-config-zone'); if(hasBookZone) buildDirectorCourseBooksConfigurator();
@@ -1680,10 +1772,10 @@
 
         function renderTimelineTabs() {
             const container = document.getElementById('timeline-tabs-container'); if (!container) return; container.innerHTML = "";
-            let visibleWeeks = globalTimelineConfig.filter(cfg => cfg.weekIdx <= getClassMaxWeeks(currentGlobalClassFilter));
+            let visibleWeeks = getClassTimeline(currentGlobalClassFilter).filter(cfg => cfg.weekIdx <= getClassMaxWeeks(currentGlobalClassFilter));
             visibleWeeks.forEach(cfg => {
                 const btn = document.createElement('button'); let isSelected = cfg.weekIdx === currentSelectedWeekIdx;
-                let isActive = cfg.weekIdx === currentActiveWeekIdx;
+                let isActive = cfg.weekIdx === getClassActiveWeekIdx(currentGlobalClassFilter);
                 let colorClass = "border-slate-200 text-slate-500 hover:bg-slate-50 bg-white";
                 if (isSelected) {
                     if (cfg.mode === 'regular') colorClass = "bg-emerald-600 text-white border-emerald-500 shadow-sm";
@@ -1702,13 +1794,14 @@
             if (accessMode === 'staff') {
                 const infoDiv = document.createElement('div');
                 infoDiv.className = "flex items-center gap-2 mt-2";
-                let currentLabel = globalTimelineConfig.find(c => c.weekIdx === currentActiveWeekIdx);
-                let activeLabel = currentLabel ? currentLabel.label : `${currentActiveWeekIdx}차시`;
-                const maxW = getTemplateMaxWeeks();
-                const dates = getScheduleDates(maxW);
+                const __cn = currentGlobalClassFilter;
+                let currentLabel = getClassTimeline(__cn).find(c => c.weekIdx === getClassActiveWeekIdx(__cn));
+                let activeLabel = currentLabel ? currentLabel.label : `${getClassActiveWeekIdx(__cn)}차시`;
+                const maxW = getClassMaxWeeks(__cn);
+                const dates = getScheduleDates(maxW, __cn);
                 let dateInfo = '';
-                if (dates[currentActiveWeekIdx]) {
-                    const d = dates[currentActiveWeekIdx];
+                if (dates[getClassActiveWeekIdx(__cn)]) {
+                    const d = dates[getClassActiveWeekIdx(__cn)];
                     dateInfo = ` (${d.getMonth()+1}/${d.getDate()})`;
                 }
                 infoDiv.innerHTML = `
@@ -1719,16 +1812,17 @@
         }
 
         function setCurrentActiveWeek() {
+            setClassActiveWeekIdx(currentGlobalClassFilter, currentSelectedWeekIdx);
             currentActiveWeekIdx = currentSelectedWeekIdx;
-            let label = globalTimelineConfig.find(c => c.weekIdx === currentActiveWeekIdx);
-            alert(`✅ 현재 활성 차시가 "${label ? label.label : currentActiveWeekIdx + '차시'}"로 설정되었습니다.\n학생·학부모가 앱을 열면 이 차시가 자동으로 열립니다.`);
+            let label = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentActiveWeekIdx);
+            alert(`✅ [${currentGlobalClassFilter}] 현재 활성 차시가 "${label ? label.label : currentActiveWeekIdx + '차시'}"로 설정되었습니다.\n학생·학부모가 앱을 열면 이 차시가 자동으로 열립니다.`);
             renderTimelineTabs();
             refreshCoreEngine();
         }
 
         function buildDirectorCourseBooksConfigurator() {
             const container = document.getElementById('dr-coursebooks-config-zone'); if(!container) return; container.innerHTML = "";
-            let activeTimeline = globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx);
+            let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx);
             let weekLabel = activeTimeline ? activeTimeline.label : `${currentSelectedWeekIdx}차시`;
             let books = ((weeklyBooksDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || [];
             let textareaVal = books.join('\n');
@@ -1759,12 +1853,12 @@
         function buildDirectorClassNotesConfigurator() {
             const container = document.getElementById('dr-classnotes-config-zone'); if(!container) return; container.innerHTML = "";
             const maxW = getClassMaxWeeks(currentGlobalClassFilter);
-            const groups = getClinicWeekGroups(maxW);
-            const currentWeekNum = getWeekNumber(currentSelectedWeekIdx);
+            const groups = getClinicWeekGroups(maxW, currentGlobalClassFilter);
+            const currentWeekNum = getWeekNumber(currentSelectedWeekIdx, currentGlobalClassFilter);
             const currentGroup = groups.find(g => g.weekNum === currentWeekNum);
             if (!currentGroup) return;
 
-            const idxLabels = currentGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w)})`).join(', ');
+            const idxLabels = currentGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w, currentGlobalClassFilter)})`).join(', ');
             let noteVal = ((classNotesDb[currentGlobalClassFilter] || {})[`w${currentWeekNum}`]) || "";
 
             const div = document.createElement('div'); div.className = "w-full space-y-2";
@@ -1784,7 +1878,7 @@
         async function executeSaveClassNotes() {
             const textarea = document.getElementById('dr-classnotes-textarea');
             if (!textarea) return;
-            const weekNum = getWeekNumber(currentSelectedWeekIdx);
+            const weekNum = getWeekNumber(currentSelectedWeekIdx, st.className || currentGlobalClassFilter);
             if (!classNotesDb[currentGlobalClassFilter]) classNotesDb[currentGlobalClassFilter] = {};
             classNotesDb[currentGlobalClassFilter][`w${weekNum}`] = textarea.value;
             await persistNow();
@@ -1795,13 +1889,13 @@
         function buildDirectorClinicNotesConfigurator() {
             const container = document.getElementById('dr-clinicnotes-config-zone'); if(!container) return; container.innerHTML = "";
             const maxW = getClassMaxWeeks(currentGlobalClassFilter);
-            const groups = getClinicWeekGroups(maxW);
+            const groups = getClinicWeekGroups(maxW, currentGlobalClassFilter);
             // 현재 선택된 차시가 속한 주차
-            const currentWeekNum = getWeekNumber(currentSelectedWeekIdx);
+            const currentWeekNum = getWeekNumber(currentSelectedWeekIdx, currentGlobalClassFilter);
             const currentGroup = groups.find(g => g.weekNum === currentWeekNum);
             if (!currentGroup) return;
 
-            const idxLabels = currentGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w)})`).join(', ');
+            const idxLabels = currentGroup.weekIdxes.map(w => `${w}차시(${getDayForWeekIdx(w, currentGlobalClassFilter)})`).join(', ');
             let noteVal = ((clinicNotesDb[currentGlobalClassFilter] || {})[`w${currentWeekNum}`]) || "";
 
             const div = document.createElement('div'); div.className = "w-full space-y-2";
@@ -1821,7 +1915,7 @@
         function executeSaveClinicNotes() {
             const textarea = document.getElementById('dr-clinicnotes-textarea');
             if (!textarea) return;
-            const weekNum = getWeekNumber(currentSelectedWeekIdx);
+            const weekNum = getWeekNumber(currentSelectedWeekIdx, currentGlobalClassFilter);
             if (!clinicNotesDb[currentGlobalClassFilter]) clinicNotesDb[currentGlobalClassFilter] = {};
             clinicNotesDb[currentGlobalClassFilter][`w${weekNum}`] = textarea.value;
             alert("클리닉 일지가 저장되었습니다.");
@@ -1830,7 +1924,7 @@
 
         function buildDirectorWeeklyHwConfigurator() {
             const container = document.getElementById('dr-weeklyhw-config-zone'); if(!container) return; container.innerHTML = "";
-            let activeTimeline = globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx);
+            let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx);
             let weekLabel = activeTimeline ? activeTimeline.label : `${currentSelectedWeekIdx}차시`;
             let hwVal = ((weeklyHwDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || "";
             const div = document.createElement('div'); div.className = "w-full space-y-2";
@@ -2017,7 +2111,8 @@
 
         function renderDirectorSchedulerGrid() {
             const container = document.getElementById('director-scheduler-grid'); if(!container) return; container.innerHTML = "";
-            let visibleWeeks = globalTimelineConfig.filter(cfg => cfg.weekIdx <= getTemplateMaxWeeks());
+            const cn = currentGlobalClassFilter;
+            let visibleWeeks = getClassTimeline(cn).filter(cfg => cfg.weekIdx <= getClassMaxWeeks(cn));
             visibleWeeks.forEach(cfg => {
                 const card = document.createElement('div'); card.className = "bg-slate-50 border border-slate-200 p-2 rounded-xl space-y-1";
                 card.innerHTML = `
@@ -2029,14 +2124,16 @@
         }
 
         function executeDeployNewSeasonSchedule() {
-            let visibleWeeks = globalTimelineConfig.filter(cfg => cfg.weekIdx <= getTemplateMaxWeeks());
+            const cn = currentGlobalClassFilter;
+            const classTl = getClassTimeline(cn);
+            let visibleWeeks = classTl.filter(cfg => cfg.weekIdx <= getClassMaxWeeks(cn));
             visibleWeeks.forEach(cfg => { 
                 let labelEl = document.getElementById(`sched-label-${cfg.weekIdx}`); let modeEl = document.getElementById(`sched-mode-${cfg.weekIdx}`);
                 let friEl = document.getElementById(`sched-friday-${cfg.weekIdx}`);
                 if(labelEl) cfg.label = labelEl.value.trim(); if(modeEl) cfg.mode = modeEl.value; 
                 if(friEl) { const v = (friEl.value || '').trim(); if(v) weekFridays[String(cfg.weekIdx)] = v; else delete weekFridays[String(cfg.weekIdx)]; }
             });
-            alert("⚙️ 시즌 차시 세팅 배포 완료."); renderTimelineTabs(); refreshCoreEngine();
+            alert(`⚙️ [${cn}] 시즌 차시 세팅 배포 완료.`); renderTimelineTabs(); refreshCoreEngine();
             // (제거됨) 클리닉 자동 점검
         }
 
@@ -2294,14 +2391,14 @@
             const n = Number(s);
             return isNaN(n) ? null : n;
         }
-        function __currentWeekCfg() { return globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx); }
+        function __currentWeekCfg() { return getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx); }
         function __currentWeekMode() { const c = __currentWeekCfg(); return c ? c.mode : 'regular'; }
         function __currentWeekLabel() { const c = __currentWeekCfg(); return c ? (c.label || `${currentSelectedWeekIdx}차시`) : `${currentSelectedWeekIdx}차시`; }
 
         // 과제는 한 주 밀린다: 일차 N의 리포트/클리닉이 참조하는 '과제 기준 일차'는 직전 일차(N보다 작은 가장 큰 운영 일차).
         // 없으면(첫 일차) null.
         function __prevWeekIdx(n) {
-            const prev = globalTimelineConfig
+            const prev = getClassTimeline(currentGlobalClassFilter)
                 .map(c => c.weekIdx)
                 .filter(w => w < n)
                 .sort((a, b) => b - a);
@@ -2309,14 +2406,14 @@
         }
         // 일차 W 과제 미인증 → 일차 W+1(다음 운영 일차) 일반 클리닉. 없으면(마지막 일차) null.
         function __nextWeekIdx(n) {
-            const next = globalTimelineConfig
+            const next = getClassTimeline(currentGlobalClassFilter)
                 .map(c => c.weekIdx)
                 .filter(w => w > n)
                 .sort((a, b) => a - b);
             return next.length ? next[0] : null;
         }
         function __weekLabelOf(weekIdx) {
-            const c = globalTimelineConfig.find(x => x.weekIdx === weekIdx);
+            const c = getClassTimeline(currentGlobalClassFilter).find(x => x.weekIdx === weekIdx);
             return c ? (c.label || `${weekIdx}일차`) : `${weekIdx}일차`;
         }
 
@@ -2723,7 +2820,7 @@
                 accessTokens,
                 classNotesDb,
                 clinicNotesDb,
-                scheduleStartDay,
+                classScheduleConfig,
                 clinicWeeklyDb,
                 clinicExamDb,
                 globalTimelineConfig,
@@ -2781,12 +2878,14 @@
                 weeklyBooksDb = data.weeklyBooksDb || {};
                 classNotesDb = data.classNotesDb || {};
                 clinicNotesDb = data.clinicNotesDb || {};
-                if (data.scheduleStartDay) scheduleStartDay = data.scheduleStartDay;
+                if (data.classScheduleConfig && typeof data.classScheduleConfig === 'object') classScheduleConfig = data.classScheduleConfig;
+                if (data.scheduleStartDay) { /* legacy: migrate global scheduleStartDay to per-class */ }
                 if (data.clinicWeeklyDb && typeof data.clinicWeeklyDb === 'object') clinicWeeklyDb = data.clinicWeeklyDb;
                 if (data.clinicExamDb && typeof data.clinicExamDb === 'object') clinicExamDb = data.clinicExamDb;
                 weeklyHwDb = data.weeklyHwDb || {};
                 accessTokens = data.accessTokens || {};
                 if (Array.isArray(data.globalTimelineConfig) && data.globalTimelineConfig.length) globalTimelineConfig = data.globalTimelineConfig;
+                // classTimelineConfig is restored via classScheduleConfig above
                 globalMockQuestionsGoogleSheet = data.globalMockQuestionsGoogleSheet || [];
                 classMaxWeeksDb = data.classMaxWeeksDb || {};
                 wtNotHeld = data.wtNotHeld || {};
@@ -3014,7 +3113,7 @@
             if (questions.length === 0) { alert('복사할 질문 데이터가 없습니다.'); return; }
             let rows = ['차시\t교재\t문항번호\t질문학생'];
             questions.forEach(q => {
-                let weekLabel = globalTimelineConfig.find(c => c.weekIdx === q.weekIdx)?.label || `${q.weekIdx}일차`;
+                let weekLabel = getClassTimeline(q.className || currentGlobalClassFilter).find(c => c.weekIdx === q.weekIdx)?.label || `${q.weekIdx}일차`;
                 rows.push(`${weekLabel}\t${q.book}\t${q.qNo}번\t${q.student}`);
             });
             navigator.clipboard.writeText(rows.join('\n')).then(() => {
@@ -3035,7 +3134,7 @@
             filtered.forEach(q => {
                 let key = questionViewAllWeeks ? `${q.weekIdx}|${q.book}|${q.qNo}` : `${q.book}|${q.qNo}`;
                 if (!indexMap[key]) {
-                    let weekLabel = globalTimelineConfig.find(c => c.weekIdx === q.weekIdx)?.label || `${q.weekIdx}일차`;
+                    let weekLabel = getClassTimeline(q.className || currentGlobalClassFilter).find(c => c.weekIdx === q.weekIdx)?.label || `${q.weekIdx}일차`;
                     indexMap[key] = { weekIdx: q.weekIdx, weekLabel, book: q.book, qNo: q.qNo, students: [], count: 0 };
                 }
                 if (!indexMap[key].students.includes(q.student)) indexMap[key].students.push(q.student);
@@ -3064,7 +3163,7 @@
             let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             let url = URL.createObjectURL(blob);
             let today = new Date().toISOString().slice(0, 10);
-            let scope = questionViewAllWeeks ? '전체일차' : (globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx)?.label || currentSelectedWeekIdx + '일차');
+            let scope = questionViewAllWeeks ? '전체일차' : (getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx)?.label || currentSelectedWeekIdx + '일차');
             let a = document.createElement('a');
             a.href = url;
             a.download = `질문순위_${currentGlobalClassFilter}_${scope}_${today}.csv`;
@@ -3078,7 +3177,7 @@
         function eIdx(weekIdx, slot) {
             // 차시당 1회 실모: 시험대비 차시 순서대로 1회, 2회, 3회...
             // slot 파라미터는 하위호환용으로 무시 (항상 1로 취급)
-            const examWeeks = globalTimelineConfig.filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a, b) => a - b);
+            const examWeeks = getClassTimeline(currentGlobalClassFilter).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a, b) => a - b);
             const pos = examWeeks.indexOf(weekIdx);
             if (pos < 0) return weekIdx;
             return pos + 1;
@@ -3093,7 +3192,7 @@
             // 시험대비(exam) 일차엔 복습테스트가 없으므로 '복습테스트 미실시' 토글을 숨김
             const __wtNHwrap = document.getElementById('dr-wt-notheld-wrap');
             if (__wtNHwrap) {
-                const __curMode = (globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx) || {}).mode;
+                const __curMode = (getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx) || {}).mode;
                 __wtNHwrap.style.display = __isExamLike(__curMode) ? 'none' : '';
             }
               
@@ -3102,7 +3201,7 @@
             renderBroadcastTargets();       // 공통 문자 — 받는 사람 선택 목록
             renderAppLinkSender();          // 원장 — 앱 링크 보낼 학생 선택 목록
             let hasClinicMgr = document.getElementById('dr-clinic-attendance-zone'); if(hasClinicMgr) buildDirectorClinicAttendanceManager();
-            let activeTimeline = globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx); if(!activeTimeline) return;
+            let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx); if(!activeTimeline) return;
             let currentBooks = ((weeklyBooksDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || [];
 
             let targetSt = studentDb.find(s => s.id === currentActiveStudentId);
@@ -3332,7 +3431,7 @@
                         // ── 누적 리스트를 차트 아래 영역에 렌더링 ──
                         const cumList = document.getElementById('st-exam-cumulative-list');
                         if (cumList) {
-                            const examWeeks = globalTimelineConfig.filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a,b)=>a-b);
+                            const examWeeks = getClassTimeline(st.className || currentGlobalClassFilter).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a,b)=>a-b);
                             let examLines = examWeeks.map(ew => {
                                 const round = eIdx(ew, 1);
                                 const myScore = targetSt.examHistory[round] || 0;
@@ -3346,10 +3445,10 @@
                             }).join('');
                             // 클리닉 실모 추가
                             const maxW2 = getClassMaxWeeks(targetSt.className);
-                            const groups2 = getClinicWeekGroups(maxW2);
+                            const groups2 = getClinicWeekGroups(maxW2, st.className || currentGlobalClassFilter);
                             let clinicExamLines = '';
                             groups2.forEach(g => {
-                                if (!isExamWeekByGroup(g)) return;
+                                if (!isExamWeekByGroup(g, st.className || currentGlobalClassFilter)) return;
                                 const ceScore = getClinicExamScore(targetSt.className, g.weekNum, targetSt.id);
                                 if (ceScore === null || ceScore === undefined) return;
                                 const ceAvg = classClinicExamAvg(targetSt.className, g.weekNum);
@@ -3457,7 +3556,7 @@
                 const wtLabels = document.getElementById(labelsId);
                 if (!wtTrack || !wtLabels) return;
                 wtTrack.innerHTML = ""; wtLabels.innerHTML = "";
-                let visibleWeeks = globalTimelineConfig.filter(cfg => cfg.weekIdx <= getClassMaxWeeks(st.className) && !__isExamLike(cfg.mode));
+                let visibleWeeks = getClassTimeline(st.className).filter(cfg => cfg.weekIdx <= getClassMaxWeeks(st.className) && !__isExamLike(cfg.mode));
                 if (visibleWeeks.length === 0) { wtTrack.closest('[id]').style.display = 'none'; return; }
                 else { const section = wtTrack.closest('[id$="-section"], [class]'); }
 
@@ -3530,7 +3629,7 @@
                 const labels = document.getElementById(labelsId);
                 if (!track || !labels) return;
                 // 실제 실모 회차 수 = 시험대비 차시 수 (차시당 1회)
-                const maxRounds = Math.max(1, globalTimelineConfig.filter(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className)).length);
+                const maxRounds = Math.max(1, getClassTimeline(st.className).filter(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className)).length);
                 labels.innerHTML = "";
                 for (let i = 1; i <= maxRounds; i++) labels.innerHTML += `<div class="text-center" style="flex:1 1 0;min-width:0;white-space:nowrap;font-size:10px;line-height:1.2">${i}회</div>`;
 
@@ -3577,14 +3676,14 @@
             buildExamLineChart('parent-chart-visualization-track', 'parent-chart-labels-track');
 
             // 실모 차트 제목의 회차 수를 실제 시험대비 일차 수에 맞게 갱신
-            const __maxRounds = Math.max(1, globalTimelineConfig.filter(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className)).length);
+            const __maxRounds = Math.max(1, getClassTimeline(st.className).filter(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className)).length);
             const stExamTitle = document.getElementById('student-exam-chart-title');
             if (stExamTitle) stExamTitle.innerHTML = `<i class="fa-solid fa-chart-line text-rose-600"></i> 실전 모의고사 전체 누적 성적표 (1회 ~ ${__maxRounds}회)`;
             const prExamTitle = document.getElementById('parent-chart-section-title');
             if (prExamTitle) prExamTitle.innerText = `실전 파이널 모의고사 1~${__maxRounds}회 전체 누적 성적 추이 리포트`;
 
             // 시험대비(exam) 일차가 하나라도 있을 때만 실모 섹션 표시 (전부 정규진도면 숨김) — 학생·학부모
-            const __hasExam = globalTimelineConfig.some(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className));
+            const __hasExam = getClassTimeline(st.className).some(c => __isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className));
             ['student-exam-cumulative-section', 'parent-exam-cumulative-section'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = __hasExam ? '' : 'none';
@@ -3605,7 +3704,7 @@
                 }
             }
             // 정규진도 차시가 있을 때만 복습테스트 차트 표시
-            const __hasRegular = globalTimelineConfig.some(c => !__isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className));
+            const __hasRegular = getClassTimeline(st.className).some(c => !__isExamLike(c.mode) && c.weekIdx <= getClassMaxWeeks(st.className));
             const prWtSection = document.getElementById('parent-wt-section');
             if (prWtSection) prWtSection.style.display = __hasRegular ? '' : 'none';
 
@@ -3748,7 +3847,7 @@
             if (accessMode !== 'staff' || __isLoading) return;
             const now = new Date();
             let target = null;   // { weekIdx(=과제 일차 W), friday, deadline }
-            globalTimelineConfig.forEach(cfg => {
+            getClassTimeline(st.className || currentGlobalClassFilter).forEach(cfg => {
                 const fri = weekFridays[String(cfg.weekIdx)];
                 if (!fri) return;
                 const deadline = new Date(fri + 'T21:00:00');       // 그 금요일 밤 9시 (로컬 시간)
@@ -3854,12 +3953,12 @@
         // 리포트 본문 생성 (주차 묶음)
         function __buildParentReportMessage(st) {
             if (!st) return null;
-            const weekPairIdxes = getWeekPair(currentSelectedWeekIdx);
+            const weekPairIdxes = getWeekPair(currentSelectedWeekIdx, st.className || currentGlobalClassFilter);
             const maxW = getClassMaxWeeks(st.className);
             const weekIdxes = weekPairIdxes.filter(w => w <= maxW);
             if (weekIdxes.length === 0) return null;
 
-            const weekNum = getWeekNumber(currentSelectedWeekIdx);
+            const weekNum = getWeekNumber(currentSelectedWeekIdx, st.className || currentGlobalClassFilter);
 
             // 반 평균 계산
             function classWtAvg(className, weekIdx) {
@@ -3872,10 +3971,10 @@
             // ── ■ 주간 테스트 결과 ──
             let testLines = [];
             weekIdxes.forEach(wIdx => {
-                const cfg = globalTimelineConfig.find(c => c.weekIdx === wIdx);
+                const cfg = getClassTimeline(st.className || currentGlobalClassFilter).find(c => c.weekIdx === wIdx);
                 const rec = st.records[wIdx];
                 if (!cfg || !rec) return;
-                const day = getDayForWeekIdx(wIdx);
+                const day = getDayForWeekIdx(wIdx, st.className || currentGlobalClassFilter);
                 const label = cfg.label || `${wIdx}차시`;
 
                 if (__isExamLike(cfg.mode)) {
@@ -3906,7 +4005,7 @@
             let section2 = `■ 주말 클리닉 (일요일 ${clinicAttLabel})`;
 
             // 클리닉 실모
-            if (isExamWeek(weekNum)) {
+            if (isExamWeek(weekNum, st.className || currentGlobalClassFilter)) {
                 const ceScore = getClinicExamScore(st.className, weekNum, st.id);
                 if (ceScore !== null && ceScore !== undefined) {
                     const ceAvg = classClinicExamAvg(st.className, weekNum);
@@ -3948,7 +4047,7 @@
             const students = studentDb.filter(s => s.className === currentGlobalClassFilter);
             if (students.length === 0) { alert('이 반에 학생이 없습니다.'); return; }
             const listBox = document.getElementById('bulk-report-list');
-            const cfg = globalTimelineConfig.find(c => c.weekIdx === currentSelectedWeekIdx) || {};
+            const cfg = getClassTimeline(st.className || currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx) || {};
             document.getElementById('bulk-report-subtitle').innerText = `[${currentGlobalClassFilter}] · ${cfg.label || ''} · ${students.length}명 리포트 생성됨 — 내용을 확인·수정하고, 빼고 싶은 학생은 체크를 해제하세요.`;
             listBox.innerHTML = '';
             students.forEach(st => {
@@ -4262,7 +4361,7 @@
                 // 이 반의 운영 일차보다 큰 일차에 착지하지 않도록 보정
                 let __maxW = getClassMaxWeeks(st.className);
                 // 1차시 시작일이 설정되어 있으면 오늘 날짜 기준으로 자동 계산
-                currentActiveWeekIdx = calcActiveWeekIdx();
+                currentActiveWeekIdx = calcActiveWeekIdx(currentGlobalClassFilter);
                 if (currentActiveWeekIdx >= 1 && currentActiveWeekIdx <= __maxW) {
                     currentSelectedWeekIdx = currentActiveWeekIdx;
                 } else {
@@ -4417,7 +4516,7 @@
             setBroadcastMode('all');       // 공통 문자: 기본은 '반 전체'
             renderTimelineTabs(); renderDirectorSchedulerGrid(); buildDirectorClassLinksMapper(); buildDirectorSheetMapperInputs();
             let __defaultClass = classLinksDb["고2 미적분 파이널"] ? "고2 미적분 파이널" : Object.keys(classLinksDb)[0];
-            currentActiveWeekIdx = calcActiveWeekIdx();
+            currentActiveWeekIdx = calcActiveWeekIdx(currentGlobalClassFilter);
             let __autoWeek = currentActiveWeekIdx >= 1 ? currentActiveWeekIdx : null;
             if (__autoWeek != null) {
                 currentSelectedWeekIdx = __autoWeek;
@@ -4429,8 +4528,9 @@
             switchRoleView(staffRole === 'director' ? 'director' : 'assistant');
             const __b = document.getElementById('deploy-base-url'); if (__b) __b.value = (window.location.origin + window.location.pathname).replace(/[?#].*$/, '');
             const __cn = document.getElementById('deploy-link-classname'); if (__cn) __cn.innerText = currentGlobalClassFilter;
-            const __daysel = document.getElementById('dr-start-day-select'); if (__daysel) __daysel.value = scheduleStartDay;
-            const __dateInput = document.getElementById('dr-start-date-input'); if (__dateInput) __dateInput.value = scheduleStartDate;
+            // 초기 반의 스케줄 설정으로 UI 세팅
+            const __daysel = document.getElementById('dr-start-day-select'); if (__daysel) __daysel.value = getClassStartDay(currentGlobalClassFilter);
+            const __dateInput = document.getElementById('dr-start-date-input'); if (__dateInput) __dateInput.value = getClassStartDate(currentGlobalClassFilter);
             updateDayPreview();
               
 
