@@ -205,6 +205,20 @@
                     <h3 class="text-[11px] font-black text-slate-800 uppercase"><i class="fa-solid fa-link text-indigo-600 mr-1.5"></i> 강좌별 외부 링크 관리</h3>
                     <div id="dr-class-links-mapper-container" class="space-y-2.5"></div>
                 </div>
+
+                <!-- 시험분석앱 연동 -->
+                <div class="bg-white border border-violet-200 p-4 rounded-2xl shadow-xs space-y-2.5">
+                    <h3 class="text-[11px] font-black text-slate-800 uppercase"><i class="fa-solid fa-chart-column text-violet-600 mr-1.5"></i> 시험 분석앱 연동</h3>
+                    <p class="text-[10px] text-slate-500 font-medium leading-relaxed">
+                        OMR로 채점한 시험 점수를 차시별 실모 / 클리닉 점수 칸에 연결합니다.<br>
+                        <b class="text-slate-700">차시 실모</b>와 <b class="text-purple-700">클리닉 시험</b>이 섞이지 않도록,
+                        원장이 직접 짝지어 준 것만 반영됩니다.
+                    </p>
+                    <div id="dr-exam-link-summary" class="text-[10px] font-bold text-slate-500"></div>
+                    <button onclick="openExamLinkCenter()" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-2.5 rounded-xl text-[11px] shadow-2xs cursor-pointer">
+                        <i class="fa-solid fa-link"></i> 시험 연동 센터 열기
+                    </button>
+                </div>
                 <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs space-y-2.5">
                     <h3 id="dr-sheet-center-title" class="text-[11px] font-black text-slate-800 uppercase"><i class="fa-solid fa-file-excel text-emerald-600 mr-1.5"></i> 학생별 오답 시트 URL 관리</h3>
                     <div id="dr-sheet-mapper-container" class="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar"></div>
@@ -507,7 +521,8 @@
                         </div>
                         <!-- 분석지 버튼 -->
                         <div id="st-analysis-report-btn" class="hidden">
-                            <button onclick="window.open('https://lsj-math.github.io/exam-register/report.html?student_id=' + currentActiveStudentId,'_blank')" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-3 rounded-xl shadow-xs text-xs flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-chart-column"></i> 실전 모의고사 회차별 분석지</button>
+                            <div class="text-[11px] font-black text-violet-700 mb-2"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
+                            <div id="st-analysis-report-list" class="space-y-1.5"></div>
                         </div>
                         <div id="st-clinic-history-zone" class="space-y-2"></div>
                         <div id="st-comment-zone" class="p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
@@ -555,7 +570,8 @@
                     </div>
                     <!-- 분석지 버튼 -->
                     <div id="pr-analysis-report-btn" class="hidden mt-3">
-                        <button onclick="window.open('https://lsj-math.github.io/exam-register/report.html?student_id=' + currentActiveStudentId,'_blank')" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-3 rounded-xl shadow-xs text-xs flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-chart-column"></i> 실전 모의고사 회차별 분석지</button>
+                        <div class="text-[11px] font-black text-violet-700 mb-2"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
+                        <div id="pr-analysis-report-list" class="space-y-1.5"></div>
                     </div>
                     <div id="pr-clinic-history-zone" class="mt-3 space-y-2"></div>
                     <div id="pr-comment-zone" class="mt-3 p-2.5 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
@@ -593,6 +609,12 @@
            ===================================================== */
         const SUPABASE_URL = 'https://xjycvsnmkbbruhqhmory.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqeWN2c25ta2JicnVocWhtb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MTkxMzMsImV4cCI6MjEwMTQ5NTEzM30.lebGx2ilI5lhfD9MV8yQa1GqVCjIBN8DS1oiqJnTyec';
+        // ─────────────────────────────────────────────────────────────
+        //  시험분석앱 주소 (SNT 시험 분석 시스템 · sntanalysis_v4.html)
+        //  ⚠️ 분석앱을 새 주소에 배포했다면 이 줄 하나만 바꾸면 전체가 따라갑니다.
+        //     ?student_id=..&exam_id=.. 를 붙여 학생별·회차별 분석지를 엽니다.
+        // ─────────────────────────────────────────────────────────────
+        const ANALYSIS_APP_URL = 'https://lsj-math.github.io/exam-register/report.html';
         // =====================================================================
         //  시뮬레이션 모드 스위치
         //  true  : Supabase/Netlify 없이 내장 데모 데이터로 단독 실행 (지금 상태)
@@ -711,6 +733,10 @@
                     { key: 'scheduleStartDate', value: '' },  // legacy — 실제 반별 값은 classScheduleConfig에 저장
                     { key: 'clinicWeeklyDb', value: clinicWeeklyDb },
                     { key: 'clinicExamDb', value: clinicExamDb },
+                    // ── 시험분석앱 연동 ──
+                    { key: 'examRoundMap', value: examRoundMap },     // 차시↔시험지 매핑(화이트리스트)
+                    { key: 'examLinkCache', value: examLinkCache },   // 연동이 써 넣은 값 기억(수동 우선 판별용)
+                    { key: 'examLabels', value: buildExamLabels() },  // 분석앱이 읽는 회차 이름표
                     { key: 'accessTokens', value: accessTokens },
                     { key: 'smsTemplates', value: smsTemplates },
                     { key: 'currentGlobalNoticeText', value: currentGlobalNoticeText },
@@ -740,7 +766,7 @@
                     books: __mapBooks(),
                     notes: __mapNotes(),
                     timeline: globalTimelineConfig,
-                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, classScheduleConfig, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb]
+                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, classScheduleConfig, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb, examRoundMap, examLinkCache]
                 });
             } catch (e) { return null; }
         }
@@ -912,6 +938,8 @@
                 if (cfgMap.currentActiveWeekIdx) currentActiveWeekIdx = cfgMap.currentActiveWeekIdx;
                 if (cfgMap.clinicWeeklyDb && typeof cfgMap.clinicWeeklyDb === 'object') clinicWeeklyDb = cfgMap.clinicWeeklyDb;
                 if (cfgMap.clinicExamDb && typeof cfgMap.clinicExamDb === 'object') clinicExamDb = cfgMap.clinicExamDb;
+                if (cfgMap.examRoundMap && typeof cfgMap.examRoundMap === 'object') examRoundMap = cfgMap.examRoundMap;
+                if (cfgMap.examLinkCache && typeof cfgMap.examLinkCache === 'object') examLinkCache = cfgMap.examLinkCache;
                 if (cfgMap.accessTokens && typeof cfgMap.accessTokens === 'object') accessTokens = cfgMap.accessTokens;
                 if (cfgMap.smsTemplates && typeof cfgMap.smsTemplates === 'object') smsTemplates = { ...DEFAULT_SMS_TEMPLATES, ...cfgMap.smsTemplates };
                 if (cfgMap.currentGlobalNoticeText != null) currentGlobalNoticeText = cfgMap.currentGlobalNoticeText;
@@ -928,6 +956,19 @@
             }
             sortStudentsByName();   // 불러온 명단을 가나다순으로 정렬
             __lastSyncedSnapshot = __stateSnapshot();   // 방금 창고와 맞춘 상태를 기준점으로 기록
+
+            // ── 시험분석앱 연동: 원본 로드 → 매핑된 것만 점수 반영 ──
+            // ⚠️ 반드시 스냅샷을 찍은 뒤에 실행한다.
+            //    그래야 "연동이 새로 채운 점수"가 변경분으로 감지되어 창고에 저장된다.
+            //    실패해도 앱 전체가 죽지 않도록 try로 감쌈(연동은 부가 기능).
+            try {
+                await loadSntExamData();
+                const n = applyExamLinks();
+                if (n > 0) {
+                    console.log(`[분석앱 연동] ${n}개 점수 칸을 자동으로 채웠습니다.`);
+                    if (accessMode === 'staff') schedulePersist();
+                }
+            } catch (e) { console.warn('[분석앱 연동] 반영 실패', e); }
         }
 
         let globalSeasonMaxWeeks = 8;
@@ -1201,6 +1242,646 @@
             if (!clinicExamDb[className][weekNum]) clinicExamDb[className][weekNum] = {};
             clinicExamDb[className][weekNum][studentId] = score;
             refreshCoreEngine();
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           시험분석앱(SNT 시험 분석 시스템) 연동 계층
+           ───────────────────────────────────────────────────────────────
+           원칙 1. 관리앱은 exams 테이블을 "직접" 읽어 점수에 반영하지 않는다.
+                   examRoundMap 에 원장이 명시적으로 등재한 것만 반영한다(화이트리스트).
+           원칙 2. 손으로 입력한 점수가 항상 이긴다(수동 우선).
+                   examLinkCache 로 "직전에 연동이 써 넣은 값"을 기억해 두고,
+                   현재 값이 그것과 다르면 사람이 고친 것으로 보고 건드리지 않는다.
+           원칙 3. OMR·서술형이 모두 채점 완료된 결과만 반영한다.
+                   (서술형 미채점 상태의 반쪽 점수가 학부모 리포트로 나가는 사고 방지)
+           ═══════════════════════════════════════════════════════════════ */
+
+        // { className: { main:{ weekIdx: examId }, clinic:{ weekNum: examId }, ignore:[examId,...] } }
+        let examRoundMap = {};
+        // { main:{ "studentId-round": score }, clinic:{ "studentId-weekNum": score } }
+        let examLinkCache = { main: {}, clinic: {} };
+        // 분석앱에서 읽어온 원본 (메모리 전용 · 저장하지 않음)
+        let sntExams = [];            // exams 행 목록
+        let sntResultsByExam = {};    // { exam_id: [exam_results 행, ...] }
+        let sntLoadError = null;
+
+        const EXAM_CATS = {
+            mock:   { label: '실전모의고사', color: 'rose',   desc: '매 차시 실모' },
+            clinic: { label: '클리닉',      color: 'purple', desc: '클리닉 시험' },
+            retest: { label: '재시험',      color: 'amber',  desc: '재시험' }
+        };
+        const examCatLabel = c => (EXAM_CATS[c] || EXAM_CATS.mock).label;
+
+        // 반 기준 회차 계산 (eIdx는 현재 선택된 반만 봄 → 반을 명시하는 버전)
+        function eIdxOf(className, weekIdx) {
+            const examWeeks = getClassTimeline(className).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a, b) => a - b);
+            const pos = examWeeks.indexOf(Number(weekIdx));
+            return pos < 0 ? Number(weekIdx) : pos + 1;
+        }
+
+        function __mapFor(className) {
+            if (!examRoundMap[className]) examRoundMap[className] = { main: {}, clinic: {}, ignore: [] };
+            const m = examRoundMap[className];
+            if (!m.main) m.main = {};
+            if (!m.clinic) m.clinic = {};
+            if (!Array.isArray(m.ignore)) m.ignore = [];
+            return m;
+        }
+
+        function getLinkedExamId(className, kind, key) {
+            return (__mapFor(className)[kind] || {})[key] || null;
+        }
+        function findExam(examId) {
+            return sntExams.find(e => String(e.id) === String(examId)) || null;
+        }
+        // 채점 완료(OMR+서술형) 결과만 통과
+        function __gradedResults(examId) {
+            return (sntResultsByExam[examId] || []).filter(r => r.omr_graded && r.sub_graded);
+        }
+        function examProgress(examId) {
+            const all = sntResultsByExam[examId] || [];
+            return { done: all.filter(r => r.omr_graded && r.sub_graded).length, total: all.length };
+        }
+
+        // ── 매핑 → 실제 점수 반영 ──
+        // 반환: 이번에 새로 채워 넣은 칸 수
+        function applyExamLinks() {
+            let written = 0;
+            if (!examLinkCache.main) examLinkCache.main = {};
+            if (!examLinkCache.clinic) examLinkCache.clinic = {};
+
+            Object.keys(examRoundMap).forEach(cn => {
+                const m = __mapFor(cn);
+
+                // ① 차시 실모 → students.exam_history[회차]
+                Object.keys(m.main).forEach(wk => {
+                    const examId = m.main[wk];
+                    if (!examId) return;
+                    const round = eIdxOf(cn, wk);
+                    __gradedResults(examId).forEach(r => {
+                        const st = studentDb.find(s => String(s.id) === String(r.student_id) && s.className === cn);
+                        if (!st) return;
+                        const ck = `${st.id}-${round}`;
+                        const cur = Number(st.examHistory[round] || 0);
+                        const cached = Number(examLinkCache.main[ck] ?? NaN);
+                        // 사람이 손으로 고친 값이면 건드리지 않음
+                        if (cur > 0 && cur !== cached) return;
+                        if (cur === Number(r.total_score)) { examLinkCache.main[ck] = Number(r.total_score); return; }
+                        st.examHistory[round] = Number(r.total_score);
+                        examLinkCache.main[ck] = Number(r.total_score);
+                        written++;
+                    });
+                });
+
+                // ② 클리닉 실모 → clinicExamDb[반][주차]
+                Object.keys(m.clinic).forEach(wn => {
+                    const examId = m.clinic[wn];
+                    if (!examId) return;
+                    const weekNum = Number(wn);
+                    __gradedResults(examId).forEach(r => {
+                        const st = studentDb.find(s => String(s.id) === String(r.student_id) && s.className === cn);
+                        if (!st) return;
+                        const ck = `${st.id}-${weekNum}`;
+                        const cur = getClinicExamScore(cn, weekNum, st.id);
+                        const cached = Number(examLinkCache.clinic[ck] ?? NaN);
+                        if (cur !== null && cur !== undefined && Number(cur) > 0 && Number(cur) !== cached) return;
+                        if (Number(cur) === Number(r.total_score)) { examLinkCache.clinic[ck] = Number(r.total_score); return; }
+                        if (!clinicExamDb[cn]) clinicExamDb[cn] = {};
+                        if (!clinicExamDb[cn][weekNum]) clinicExamDb[cn][weekNum] = {};
+                        clinicExamDb[cn][weekNum][st.id] = Number(r.total_score);
+                        examLinkCache.clinic[ck] = Number(r.total_score);
+                        written++;
+                    });
+                });
+            });
+            return written;
+        }
+
+        // ── 학생·학부모 포털이 쓸 회차 이름표를 분석앱에 넘겨준다 ──
+        // app_config.examLabels = { examId: { label, kind, order } }
+        // 분석앱(report.html)이 이 값을 읽어 "실전모의고사 3회차" / "실전모의고사(클리닉2회)" 로 표시.
+        function buildExamLabels() {
+            const labels = {};
+            Object.keys(examRoundMap).forEach(cn => {
+                const m = __mapFor(cn);
+                Object.keys(m.main).forEach(wk => {
+                    const id = m.main[wk]; if (!id) return;
+                    labels[id] = { label: `실전모의고사 ${eIdxOf(cn, wk)}회차`, kind: 'mock', order: Number(wk) * 10 };
+                });
+                Object.keys(m.clinic).forEach(wn => {
+                    const id = m.clinic[wn]; if (!id) return;
+                    const maxW = getClassMaxWeeks(cn);
+                    const g = getClinicWeekGroups(maxW, cn).find(x => x.weekNum === Number(wn));
+                    const anchor = g ? Math.max(...g.weekIdxes) : Number(wn) * 2;
+                    labels[id] = { label: `실전모의고사(클리닉${getClinicExamRound(Number(wn), cn)}회)`, kind: 'clinic', order: anchor * 10 + 5 };
+                });
+            });
+            return labels;
+        }
+
+        // ── 분석앱 원본 데이터 로딩 (읽기 전용) ──
+        async function loadSntExamData() {
+            if (SIMULATION_MODE || !sb) return;
+            try {
+                const [ex, res] = await Promise.all([
+                    sb.from('exams').select('*').order('created_at', { ascending: false }),
+                    sb.from('exam_results').select('*')
+                ]);
+                if (ex.error) throw ex.error;
+                sntExams = ex.data || [];
+                sntResultsByExam = {};
+                (res.data || []).forEach(r => {
+                    if (!sntResultsByExam[r.exam_id]) sntResultsByExam[r.exam_id] = [];
+                    sntResultsByExam[r.exam_id].push(r);
+                });
+                sntLoadError = null;
+            } catch (e) {
+                console.warn('[분석앱 연동] 데이터 로드 실패', e);
+                sntLoadError = (e && e.message) || '알 수 없는 오류';
+                sntExams = []; sntResultsByExam = {};
+            }
+        }
+
+        // 특정 학생/차시의 연동 상태 조회 — 점수 칸 UI가 사용
+        // state: 'linked'(연동+채점완료) | 'pending'(연동됐지만 채점중) | 'manual'(연동됐지만 손으로 덮어씀) | 'none'
+        function getExamCellState(className, weekIdx, studentId) {
+            const examId = getLinkedExamId(className, 'main', weekIdx);
+            if (!examId) return { state: 'none' };
+            const exam = findExam(examId);
+            const round = eIdxOf(className, weekIdx);
+            const r = (sntResultsByExam[examId] || []).find(x => String(x.student_id) === String(studentId));
+            const prog = examProgress(examId);
+            if (!r || !r.omr_graded || !r.sub_graded) return { state: 'pending', exam, examId, round, prog };
+            const cur = Number((studentDb.find(s => String(s.id) === String(studentId)) || {}).examHistory?.[round] || 0);
+            const linked = Number(r.total_score);
+            if (cur > 0 && cur !== linked) return { state: 'manual', exam, examId, round, prog, linkedScore: linked, score: cur };
+            return { state: 'linked', exam, examId, round, prog, linkedScore: linked, score: cur };
+        }
+
+        function analysisUrlFor(studentId, examId) {
+            const base = ANALYSIS_APP_URL;
+            let u = `${base}?student_id=${encodeURIComponent(studentId)}`;
+            if (examId) u += `&exam_id=${encodeURIComponent(examId)}`;
+            return u;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           원장 전용 · 시험 연동 센터
+           차시(또는 클리닉 주차) ↔ 분석앱 시험지를 원장이 직접 짝지어 주는 화면.
+           여기서 짝지어 주기 전까지 어떤 점수도 자동으로 반영되지 않는다.
+           ═══════════════════════════════════════════════════════════════ */
+        let elcClass = null;             // 연동 센터에서 보고 있는 반
+        let elcShowAllClasses = false;   // 다른 반 시험지도 후보로 보여줄지
+        let elcPending = null;           // 자동 제안 (아직 확정 안 된 상태) { main:{}, clinic:{} }
+
+        async function openExamLinkCenter() {
+            if (accessMode !== 'staff') { alert('원장·조교 전용 기능입니다.'); return; }
+            elcClass = currentGlobalClassFilter;
+            elcPending = null;
+            const modal = document.getElementById('exam-link-modal');
+            if (modal) modal.style.display = 'flex';
+            renderExamLinkCenter(true);
+            await loadSntExamData();      // 항상 최신 상태로 갱신
+            applyExamLinks();
+            renderExamLinkCenter();
+        }
+        function closeExamLinkCenter() {
+            elcPending = null;
+            const modal = document.getElementById('exam-link-modal');
+            if (modal) modal.style.display = 'none';
+            refreshCoreEngine();
+        }
+        function elcChangeClass(cn) { elcClass = cn; elcPending = null; renderExamLinkCenter(); }
+        function elcToggleAllClasses(v) { elcShowAllClasses = !!v; renderExamLinkCenter(); }
+
+        function elcAfterChange() {
+            applyExamLinks();
+            schedulePersist();
+            renderExamLinkCenter();
+            refreshCoreEngine();
+        }
+
+        // 같은 시험지가 두 칸에 동시에 연동되지 않도록 기존 자리에서 떼어낸다
+        function __detachExamEverywhere(cn, examId) {
+            const m = __mapFor(cn);
+            Object.keys(m.main).forEach(k => { if (String(m.main[k]) === String(examId)) { __clearLinkedScores(cn, 'main', k); delete m.main[k]; } });
+            Object.keys(m.clinic).forEach(k => { if (String(m.clinic[k]) === String(examId)) { __clearLinkedScores(cn, 'clinic', k); delete m.clinic[k]; } });
+        }
+
+        // 연동을 끊을 때, "연동이 채워 넣었던 값"만 되돌린다. 손으로 고친 값은 그대로 둔다.
+        function __clearLinkedScores(cn, kind, key) {
+            const students = studentDb.filter(s => s.className === cn);
+            if (kind === 'main') {
+                const round = eIdxOf(cn, key);
+                students.forEach(st => {
+                    const ck = `${st.id}-${round}`;
+                    if (examLinkCache.main && examLinkCache.main[ck] != null &&
+                        Number(st.examHistory[round] || 0) === Number(examLinkCache.main[ck])) {
+                        st.examHistory[round] = 0;
+                    }
+                    if (examLinkCache.main) delete examLinkCache.main[ck];
+                });
+            } else {
+                const weekNum = Number(key);
+                students.forEach(st => {
+                    const ck = `${st.id}-${weekNum}`;
+                    const cur = getClinicExamScore(cn, weekNum, st.id);
+                    if (examLinkCache.clinic && examLinkCache.clinic[ck] != null &&
+                        Number(cur) === Number(examLinkCache.clinic[ck])) {
+                        if (clinicExamDb[cn] && clinicExamDb[cn][weekNum]) delete clinicExamDb[cn][weekNum][st.id];
+                    }
+                    if (examLinkCache.clinic) delete examLinkCache.clinic[ck];
+                });
+            }
+        }
+
+        function elcSetLink(kind, key, examId) {
+            const cn = elcClass;
+            const m = __mapFor(cn);
+            if (!examId) { __clearLinkedScores(cn, kind, key); delete m[kind][key]; elcAfterChange(); return; }
+            const ex = findExam(examId);
+            const want = kind === 'main' ? 'mock' : 'clinic';
+            if (ex && (ex.category || 'mock') !== want) {
+                const ok = confirm(
+                    `⚠️ 유형이 맞지 않습니다.\n\n` +
+                    `선택한 시험지: "${ex.title}" → 유형 [${examCatLabel(ex.category)}]\n` +
+                    `연동하려는 자리: ${kind === 'main' ? '차시 실전모의고사' : '클리닉 시험'}\n\n` +
+                    `이대로 연동하면 ${kind === 'main' ? '차시별 그래프' : '클리닉 일지'}에 이 점수가 들어갑니다.\n` +
+                    `그래도 진행할까요?`
+                );
+                if (!ok) { renderExamLinkCenter(); return; }
+            }
+            __detachExamEverywhere(cn, examId);
+            m[kind][key] = examId;
+            m.ignore = (m.ignore || []).filter(x => String(x) !== String(examId));
+            elcAfterChange();
+        }
+
+        function elcIgnore(examId) {
+            const m = __mapFor(elcClass);
+            __detachExamEverywhere(elcClass, examId);
+            if (!m.ignore.some(x => String(x) === String(examId))) m.ignore.push(examId);
+            elcAfterChange();
+        }
+        function elcUnignore(examId) {
+            const m = __mapFor(elcClass);
+            m.ignore = m.ignore.filter(x => String(x) !== String(examId));
+            elcAfterChange();
+        }
+
+        // ── 자동 제안 ── 빈 칸만 채워서 "제안" 상태로 보여주고, 원장이 확인해야 확정된다.
+        function elcAutoSuggest() {
+            const cn = elcClass;
+            const m = __mapFor(cn);
+            const used = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
+            const pending = { main: {}, clinic: {} };
+            const pick = (want) => sntExams
+                .filter(e => e.class_name === cn && (e.category || 'mock') === want)
+                .filter(e => !used.has(String(e.id)) && !m.ignore.some(x => String(x) === String(e.id)))
+                .sort((a, b) => (Number(a.round || 0) - Number(b.round || 0)) || (new Date(a.created_at || 0) - new Date(b.created_at || 0)));
+
+            const mockPool = pick('mock');
+            getClassTimeline(cn).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a, b) => a - b)
+                .forEach(wk => {
+                    if (m.main[wk]) return;
+                    const round = eIdxOf(cn, wk);
+                    // ① 회차 숫자가 일치하는 시험지 우선 ② 없으면 순서대로
+                    let i = mockPool.findIndex(e => Number(e.round) === round);
+                    if (i < 0) i = 0;
+                    if (mockPool.length) { pending.main[wk] = mockPool.splice(i, 1)[0].id; }
+                });
+
+            const clinicPool = pick('clinic');
+            getClinicWeekGroups(getClassMaxWeeks(cn), cn).filter(g => isExamWeekByGroup(g, cn))
+                .forEach(g => {
+                    if (m.clinic[g.weekNum]) return;
+                    if (clinicPool.length) pending.clinic[g.weekNum] = clinicPool.shift().id;
+                });
+
+            const n = Object.keys(pending.main).length + Object.keys(pending.clinic).length;
+            if (n === 0) { alert('자동으로 제안할 만한 빈 칸이 없습니다.\n(이미 다 연동됐거나, 후보 시험지가 없습니다)'); return; }
+            elcPending = pending;
+            renderExamLinkCenter();
+        }
+        function elcApplyPending() {
+            if (!elcPending) return;
+            const m = __mapFor(elcClass);
+            Object.keys(elcPending.main).forEach(k => { __detachExamEverywhere(elcClass, elcPending.main[k]); m.main[k] = elcPending.main[k]; });
+            Object.keys(elcPending.clinic).forEach(k => { __detachExamEverywhere(elcClass, elcPending.clinic[k]); m.clinic[k] = elcPending.clinic[k]; });
+            elcPending = null;
+            elcAfterChange();
+        }
+        function elcCancelPending() { elcPending = null; renderExamLinkCenter(); }
+
+        async function elcPullScores() {
+            const btn = document.getElementById('elc-pull-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '가져오는 중...'; }
+            await loadSntExamData();
+            const n = applyExamLinks();
+            const ok = await persistNow();
+            renderExamLinkCenter();
+            refreshCoreEngine();
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate"></i> 최신 점수 다시 가져오기'; }
+            alert(n > 0
+                ? `✅ ${n}개 점수 칸을 채웠습니다.${ok === false ? '\n\n⚠️ 다만 창고 저장에 실패했습니다 — 다시 시도해 주세요.' : ''}`
+                : '새로 가져올 점수가 없습니다.\n(모두 최신이거나, 아직 채점이 끝나지 않았습니다)');
+        }
+
+        function __elcOptionsHtml(kind, selectedId, isPending) {
+            const want = kind === 'main' ? 'mock' : 'clinic';
+            const list = sntExams
+                .filter(e => elcShowAllClasses || e.class_name === elcClass)
+                .slice()
+                .sort((a, b) => {
+                    const ap = (a.category || 'mock') === want ? 0 : 1, bp = (b.category || 'mock') === want ? 0 : 1;
+                    if (ap !== bp) return ap - bp;
+                    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                });
+            let html = `<option value="">— 연동 안 함 —</option>`;
+            list.forEach(e => {
+                const p = examProgress(e.id);
+                const mismatch = (e.category || 'mock') !== want ? ' ⚠️' : '';
+                const otherClass = e.class_name !== elcClass ? ` · ${e.class_name}` : '';
+                const sel = String(e.id) === String(selectedId) ? ' selected' : '';
+                html += `<option value="${__escAttr(e.id)}"${sel}>[${examCatLabel(e.category)}]${mismatch} ${__escHtml(e.title)} · 채점 ${p.done}/${p.total}${__escHtml(otherClass)}</option>`;
+            });
+            return html;
+        }
+
+        function __elcRow(kind, key, label, sublabel) {
+            const m = __mapFor(elcClass);
+            const pend = elcPending && elcPending[kind] ? elcPending[kind][key] : null;
+            const cur = m[kind][key] || null;
+            const shown = pend || cur;
+            const ex = shown ? findExam(shown) : null;
+            const p = shown ? examProgress(shown) : { done: 0, total: 0 };
+            const isPending = !!pend;
+            let status;
+            if (!shown) status = `<span class="text-[10px] font-bold text-slate-400">미연동 — 점수 반영 안 됨</span>`;
+            else if (isPending) status = `<span class="text-[10px] font-black text-amber-600">제안됨 — 아래 [제안 적용]을 눌러야 확정</span>`;
+            else if (p.total === 0) status = `<span class="text-[10px] font-bold text-amber-600">연동됨 · 아직 채점 결과 없음</span>`;
+            else if (p.done < p.total) status = `<span class="text-[10px] font-bold text-amber-600">연동됨 · 채점 ${p.done}/${p.total}명 (서술형까지 끝난 학생만 반영)</span>`;
+            else status = `<span class="text-[10px] font-black text-emerald-600">✅ 연동 완료 · ${p.done}명 반영</span>`;
+
+            const border = isPending ? 'border-amber-300 bg-amber-50' : (shown ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-white');
+            return `
+                <div class="border ${border} rounded-xl p-2.5 mb-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="min-w-[92px]">
+                            <div class="text-[11px] font-black text-slate-800">${__escHtml(label)}</div>
+                            <div class="text-[9px] text-slate-400 font-bold">${__escHtml(sublabel || '')}</div>
+                        </div>
+                        <select onchange="elcSetLink('${kind}','${__escAttr(key)}',this.value)" class="flex-1 min-w-[180px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 focus:outline-none focus:border-indigo-500">
+                            ${__elcOptionsHtml(kind, shown)}
+                        </select>
+                        ${shown ? `<button onclick="window.open('${__escAttr(ANALYSIS_APP_URL)}?exam_id=${__escAttr(shown)}','_blank')" title="이 시험 분석지 열기" class="text-violet-600 hover:text-white hover:bg-violet-600 border border-violet-200 hover:border-violet-600 px-2 py-1 rounded text-[9px] font-bold cursor-pointer transition-all"><i class="fa-solid fa-chart-column"></i></button>` : ''}
+                    </div>
+                    <div class="mt-1 pl-[100px]">${status}</div>
+                </div>`;
+        }
+
+        function renderExamLinkCenter(loading) {
+            const body = document.getElementById('exam-link-body');
+            if (!body) return;
+            const cn = elcClass || currentGlobalClassFilter;
+            const classes = Object.keys(classLinksDb);
+
+            let head = `
+                <div class="flex items-center gap-2 flex-wrap mb-3 bg-white border border-slate-200 rounded-xl p-2.5">
+                    <span class="text-[10px] font-black text-slate-500">반 선택</span>
+                    <select onchange="elcChangeClass(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-800 focus:outline-none focus:border-indigo-500">
+                        ${classes.map(c => `<option value="${__escAttr(c)}"${c === cn ? ' selected' : ''}>${__escHtml(c)}</option>`).join('')}
+                    </select>
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-slate-500 cursor-pointer ml-auto">
+                        <input type="checkbox" ${elcShowAllClasses ? 'checked' : ''} onchange="elcToggleAllClasses(this.checked)" class="w-3 h-3 accent-indigo-600">
+                        다른 반 시험지도 후보에 표시
+                    </label>
+                </div>`;
+
+            if (loading) { body.innerHTML = head + `<div class="text-center text-[11px] text-slate-400 py-10">분석앱에서 시험 목록을 불러오는 중…</div>`; return; }
+
+            if (sntLoadError) {
+                head += `<div class="bg-rose-50 border border-rose-200 rounded-xl p-2.5 mb-3 text-[10px] font-bold text-rose-700 leading-relaxed">
+                    ⚠️ 분석앱 데이터를 불러오지 못했습니다: ${__escHtml(sntLoadError)}<br>
+                    Supabase의 <b>exams / exam_results</b> 테이블 읽기 권한(RLS)을 확인해 주세요.
+                </div>`;
+            }
+
+            const m = __mapFor(cn);
+            const examWeeks = getClassTimeline(cn).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a, b) => a - b);
+            const tl = getClassTimeline(cn);
+
+            let mainHtml = `<div class="text-[11px] font-black text-rose-700 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-chart-line"></i> 차시별 실전모의고사
+                    <span class="text-[9px] font-bold text-slate-400">→ 점수가 회차별 그래프에 반영됩니다</span>
+                </div>`;
+            if (examWeeks.length === 0) {
+                mainHtml += `<div class="text-[10px] text-slate-400 font-bold py-3">이 반에는 아직 '내신대비(시험)' 모드로 지정된 차시가 없습니다.<br>위쪽 [차시별 모드 설정]에서 먼저 지정해 주세요.</div>`;
+            } else {
+                examWeeks.forEach(wk => {
+                    const cfg = tl.find(c => c.weekIdx === wk) || {};
+                    mainHtml += __elcRow('main', String(wk), `실모 ${eIdxOf(cn, wk)}회`, `${cfg.label || wk + '차시'}`);
+                });
+            }
+
+            const groups = getClinicWeekGroups(getClassMaxWeeks(cn), cn).filter(g => isExamWeekByGroup(g, cn));
+            let clinicHtml = `<div class="text-[11px] font-black text-purple-700 mt-4 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-notes-medical"></i> 클리닉 시험
+                    <span class="text-[9px] font-bold text-slate-400">→ 클리닉 일지 점수로만 들어갑니다 (그래프에 안 섞임)</span>
+                </div>`;
+            if (groups.length === 0) {
+                clinicHtml += `<div class="text-[10px] text-slate-400 font-bold py-3">시험대비 주차가 없어 클리닉 시험 자리가 없습니다.</div>`;
+            } else {
+                groups.forEach(g => {
+                    clinicHtml += __elcRow('clinic', String(g.weekNum), `클리닉 ${getClinicExamRound(g.weekNum, cn)}회`, `${g.weekNum}주차`);
+                });
+            }
+
+            // 미분류: 이 반 시험지 중 어디에도 연동 안 되고 무시도 안 한 것
+            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
+            const unclassified = sntExams.filter(e => e.class_name === cn
+                && !mapped.has(String(e.id))
+                && !m.ignore.some(x => String(x) === String(e.id)));
+            const ignored = sntExams.filter(e => m.ignore.some(x => String(x) === String(e.id)));
+
+            let uncHtml = `<div class="text-[11px] font-black text-slate-700 mt-4 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-inbox"></i> 미분류 시험지 <span class="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px]">${unclassified.length}</span>
+                    <span class="text-[9px] font-bold text-slate-400">→ 어떤 점수 칸에도 들어가지 않습니다</span>
+                </div>`;
+            if (unclassified.length === 0) {
+                uncHtml += `<div class="text-[10px] text-slate-400 font-bold py-2">미분류 시험지가 없습니다. 👍</div>`;
+            } else {
+                unclassified.forEach(e => {
+                    const p = examProgress(e.id);
+                    const c = e.category || 'mock';
+                    // ⚠️ Tailwind 클래스는 문자열 조합 대신 통째로 고정 (동적 생성 실패 방지)
+                    const toneCls = c === 'clinic'
+                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                        : (c === 'retest' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                          : 'bg-rose-50 text-rose-700 border-rose-200');
+                    uncHtml += `
+                        <div class="border border-slate-200 bg-white rounded-xl p-2.5 mb-1.5 flex items-center gap-2 flex-wrap">
+                            <span class="${toneCls} border px-1.5 py-0.5 rounded text-[9px] font-black whitespace-nowrap">${examCatLabel(c)}</span>
+                            <div class="flex-1 min-w-[140px]">
+                                <div class="text-[11px] font-bold text-slate-800">${__escHtml(e.title)}</div>
+                                <div class="text-[9px] text-slate-400 font-bold">${__escHtml(e.school || '')} · 채점 ${p.done}/${p.total}명</div>
+                            </div>
+                            <button onclick="window.open('${__escAttr(ANALYSIS_APP_URL)}?exam_id=${__escAttr(e.id)}','_blank')" class="text-violet-600 border border-violet-200 hover:bg-violet-600 hover:text-white px-2 py-1 rounded text-[9px] font-bold cursor-pointer transition-all">분석지</button>
+                            <button onclick="elcIgnore('${__escAttr(e.id)}')" title="점수에 반영하지 않고, 학생·학부모 분석지 목록에서도 숨깁니다 (등록 실수 등)" class="text-slate-500 border border-slate-200 hover:bg-slate-500 hover:text-white px-2 py-1 rounded text-[9px] font-bold cursor-pointer transition-all">무시 / 숨김</button>
+                        </div>`;
+                });
+                uncHtml += `<div class="text-[9px] text-slate-400 font-bold mt-1 leading-relaxed">위 시험지를 점수에 반영하려면, 해당하는 자리의 드롭다운에서 직접 골라 주세요.</div>`;
+            }
+            if (ignored.length) {
+                uncHtml += `<div class="text-[10px] font-black text-slate-400 mt-3 mb-1">무시 처리된 시험 ${ignored.length}개</div>`;
+                ignored.forEach(e => {
+                    uncHtml += `<div class="flex items-center gap-2 py-1 text-[10px] text-slate-400 font-bold">
+                        <span class="line-through flex-1">${__escHtml(e.title)}</span>
+                        <button onclick="elcUnignore('${__escAttr(e.id)}')" class="text-indigo-500 border border-indigo-200 px-1.5 py-0.5 rounded text-[9px] cursor-pointer">되돌리기</button>
+                    </div>`;
+                });
+            }
+
+            const pendBar = elcPending ? `
+                <div class="sticky bottom-0 bg-amber-50 border border-amber-300 rounded-xl p-2.5 mt-3 flex items-center gap-2 flex-wrap">
+                    <span class="text-[10px] font-black text-amber-800 flex-1">자동 제안이 노란색으로 표시됐습니다. 확인 후 적용해 주세요 — 적용 전에는 점수가 바뀌지 않습니다.</span>
+                    <button onclick="elcCancelPending()" class="bg-white border border-amber-300 text-amber-700 font-bold px-3 py-1.5 rounded-lg text-[10px] cursor-pointer">제안 취소</button>
+                    <button onclick="elcApplyPending()" class="bg-amber-500 hover:bg-amber-600 text-white font-black px-3 py-1.5 rounded-lg text-[10px] cursor-pointer">✓ 제안 적용</button>
+                </div>` : '';
+
+            body.innerHTML = head + mainHtml + clinicHtml + uncHtml + pendBar;
+        }
+
+        /* ── 점수 칸 상태 뱃지 ──
+           🔗 연동    : 분석앱 채점 결과가 그대로 들어와 있음
+           ⏳ 채점중  : 연동은 됐지만 이 학생 채점(특히 서술형)이 안 끝남
+           ✋ 수동    : 연동값과 다르게 손으로 고침 → 손으로 넣은 값이 이김
+           (없음)     : 미연동 — 지금까지처럼 손입력                                */
+        function examCellBadge(info) {
+            if (!info || info.state === 'none') return '';
+            if (info.state === 'linked')
+                return `<span title="분석앱 채점 결과가 자동으로 들어온 점수입니다 (${__escAttr(info.exam ? info.exam.title : '')})" class="ml-1 inline-block align-middle bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-px rounded text-[8px] font-black whitespace-nowrap">🔗 연동</span>`;
+            if (info.state === 'pending')
+                return `<span title="연동은 되어 있으나 이 학생의 채점이 아직 끝나지 않았습니다 (반 진행 ${info.prog.done}/${info.prog.total}명). 서술형까지 끝나야 반영됩니다." class="ml-1 inline-block align-middle bg-amber-50 text-amber-700 border border-amber-200 px-1 py-px rounded text-[8px] font-black whitespace-nowrap">⏳ 채점중</span>`;
+            if (info.state === 'manual')
+                return `<span title="분석앱 점수는 ${info.linkedScore}점이지만, 손으로 입력한 값이 있어 그대로 둡니다. 손입력이 항상 우선합니다." class="ml-1 inline-block align-middle bg-slate-100 text-slate-600 border border-slate-300 px-1 py-px rounded text-[8px] font-black whitespace-nowrap">✋ 수동 (연동 ${info.linkedScore})</span>`;
+            return '';
+        }
+
+        // 조교실 테이블의 실모 점수 입력 칸 (입력은 항상 가능 — 손입력이 이긴다)
+        function renderExamScoreCell(st, weekIdx) {
+            const info = getExamCellState(st.className, weekIdx, st.id);
+            const round = eIdxOf(st.className, weekIdx);
+            const val = st.examHistory[round] || 0;
+            const ring = info.state === 'linked' ? 'border-emerald-300 bg-emerald-50'
+                : (info.state === 'manual' ? 'border-slate-300 bg-white'
+                : (info.state === 'pending' ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'));
+            return {
+                examId: info.examId || null,
+                html: `<div class="flex items-center gap-1 justify-center flex-wrap">
+                        <input type="number" step="0.1" value="${val}"
+                            onchange="setExamScoreManual(${st.id}, ${weekIdx}, this.value)"
+                            title="직접 입력하면 연동값보다 우선합니다"
+                            class="w-11 border ${ring} text-center rounded font-black text-rose-600">
+                        <span class="text-[10px]">점</span>
+                    </div>
+                    <div class="mt-0.5">${examCellBadge(info)}</div>`
+            };
+        }
+
+        // 손입력 — 연동 캐시와 비교해 '수동 덮어쓰기' 여부가 자동으로 판정된다
+        function setExamScoreManual(studentId, weekIdx, value) {
+            const st = studentDb.find(s => String(s.id) === String(studentId));
+            if (!st) return;
+            const round = eIdxOf(st.className, weekIdx);
+            st.examHistory[round] = Number(value) || 0;
+            refreshCoreEngine();
+        }
+
+        /* ── 학생·학부모 포털: 회차별 분석지 목록 ──
+           그 학생이 응시한 시험을 전부 보여준다 (차시 실모 + 클리닉 + 아직 미연동인 것까지).
+           ⚠️ 점수 "반영" 과는 완전히 별개다.
+              반영 = examRoundMap 화이트리스트만 / 목록 = 채점된 것 전부.
+           단, 원장이 '무시' 처리한 시험만 목록에서도 숨긴다(등록 실수 감추기용).      */
+        function studentAnalysisRows(st) {
+            if (!st) return [];
+            const labels = buildExamLabels();
+            const ignored = new Set((__mapFor(st.className).ignore || []).map(String));
+            const rows = [];
+            Object.keys(sntResultsByExam).forEach(examId => {
+                if (ignored.has(String(examId))) return;
+                const r = (sntResultsByExam[examId] || []).find(x => String(x.student_id) === String(st.id));
+                if (!r) return;
+                const ex = findExam(examId);
+                if (!ex) return;
+                const meta = labels[examId] || {};
+                rows.push({
+                    examId,
+                    exam: ex,
+                    res: r,
+                    label: meta.label || ex.title,
+                    kind: meta.kind || ex.category || 'mock',
+                    linked: !!meta.label,
+                    order: meta.order != null ? meta.order : 9000 + (new Date(ex.created_at || 0).getTime() / 1e10)
+                });
+            });
+            return rows.sort((a, b) => a.order - b.order);
+        }
+
+        function renderAnalysisReportList(zoneId, st) {
+            const box = document.getElementById(zoneId);
+            if (!box) return;
+            if (!st) { box.innerHTML = ''; return; }
+            const rows = studentAnalysisRows(st);
+            if (sntLoadError) {
+                box.innerHTML = `<div class="text-[10px] text-slate-400 font-bold py-2">분석지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>`;
+                return;
+            }
+            if (rows.length === 0) {
+                box.innerHTML = `<div class="text-[10px] text-slate-400 font-bold py-2">아직 채점된 시험이 없습니다.</div>`;
+                return;
+            }
+            box.innerHTML = rows.map(r => {
+                const done = r.res.omr_graded && r.res.sub_graded;
+                const tone = r.kind === 'clinic'
+                    ? { bar: 'border-l-purple-500', text: 'text-purple-700', chip: 'bg-purple-50 text-purple-700 border-purple-200' }
+                    : (r.kind === 'retest'
+                        ? { bar: 'border-l-amber-500', text: 'text-amber-700', chip: 'bg-amber-50 text-amber-700 border-amber-200' }
+                        : { bar: 'border-l-rose-500', text: 'text-rose-700', chip: 'bg-rose-50 text-rose-700 border-rose-200' });
+                return `
+                    <button onclick="window.open('${__escAttr(analysisUrlFor(st.id, r.examId))}','_blank')"
+                        class="w-full bg-white border border-slate-200 ${tone.bar} border-l-4 rounded-xl px-3 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-slate-50 transition-all text-left">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[12px] font-black text-slate-800 truncate">${__escHtml(r.label)}</div>
+                            <div class="text-[9px] text-slate-400 font-bold mt-0.5 flex items-center gap-1 flex-wrap">
+                                <span class="${tone.chip} border px-1 py-px rounded font-black">${examCatLabel(r.kind)}</span>
+                                <span class="truncate">${__escHtml(r.exam.title)}</span>
+                            </div>
+                        </div>
+                        <div class="text-right whitespace-nowrap">
+                            ${done
+                                ? `<div class="text-[15px] font-black ${tone.text}">${r.res.total_score}<span class="text-[10px]">점</span></div>`
+                                : `<div class="text-[10px] font-black text-amber-600">채점중</div>`}
+                            <div class="text-[8px] text-slate-400 font-bold">분석지 보기 →</div>
+                        </div>
+                    </button>`;
+            }).join('');
+        }
+
+        // 원장 페이지 카드에 표시할 한 줄 요약
+        function renderExamLinkSummary() {
+            const box = document.getElementById('dr-exam-link-summary');
+            if (!box) return;
+            const cn = currentGlobalClassFilter;
+            const m = __mapFor(cn);
+            const nMain = Object.keys(m.main).filter(k => m.main[k]).length;
+            const nClinic = Object.keys(m.clinic).filter(k => m.clinic[k]).length;
+            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
+            const unc = sntExams.filter(e => e.class_name === cn && !mapped.has(String(e.id))
+                && !m.ignore.some(x => String(x) === String(e.id))).length;
+            if (sntLoadError) { box.innerHTML = `<span class="text-rose-600">⚠️ 분석앱 연결 실패 — 연동 센터에서 확인하세요</span>`; return; }
+            box.innerHTML = `[${__escHtml(cn)}] 차시 실모 <b class="text-rose-600">${nMain}</b>개 · 클리닉 <b class="text-purple-600">${nClinic}</b>개 연동됨`
+                + (unc > 0 ? ` · <b class="text-amber-600">미분류 ${unc}개</b>` : ` · 미분류 없음 👍`);
         }
 
         // 이 주차가 시험대비 모드인지 판별 (주차 내 차시 중 하나라도 exam이면 true)
@@ -3200,6 +3881,7 @@
             renderSeasonPanel();            // 시즌 이름 입력칸 갱신
             renderBroadcastTargets();       // 공통 문자 — 받는 사람 선택 목록
             renderAppLinkSender();          // 원장 — 앱 링크 보낼 학생 선택 목록
+            renderExamLinkSummary();        // 원장 — 시험 분석앱 연동 현황 한 줄 요약
             let hasClinicMgr = document.getElementById('dr-clinic-attendance-zone'); if(hasClinicMgr) buildDirectorClinicAttendanceManager();
             let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx); if(!activeTimeline) return;
             let currentBooks = ((weeklyBooksDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || [];
@@ -3307,9 +3989,10 @@
                             
                         `;
                     } else {
+                        const __cell = renderExamScoreCell(st, currentSelectedWeekIdx);
                         html += `
-                            <td class="p-3 font-black text-rose-600 bg-rose-50/20"><input type="number" step="0.1" value="${st.examHistory[eIdx(currentSelectedWeekIdx,1)] || 0}" onchange="studentDb.find(x=>x.id===${st.id}).examHistory[eIdx(currentSelectedWeekIdx,1)]=Number(this.value); refreshCoreEngine()" class="w-10 border text-center bg-white rounded"> 점</td>
-                            <td class="p-2 bg-violet-50/20"><button onclick="window.open('https://lsj-math.github.io/exam-register/report.html?student_id=${st.id}','_blank')" class="bg-violet-600 hover:bg-violet-700 text-white font-bold px-2 py-1 rounded text-[10px] shadow-3xs cursor-pointer whitespace-nowrap"><i class="fa-solid fa-chart-column"></i> 분석지</button></td>
+                            <td class="p-3 font-black text-rose-600 bg-rose-50/20">${__cell.html}</td>
+                            <td class="p-2 bg-violet-50/20"><button onclick="window.open('${__escAttr(analysisUrlFor(st.id, __cell.examId))}','_blank')" class="bg-violet-600 hover:bg-violet-700 text-white font-bold px-2 py-1 rounded text-[10px] shadow-3xs cursor-pointer whitespace-nowrap"><i class="fa-solid fa-chart-column"></i> 분석지</button></td>
                         `;
                     }
                     html += `
@@ -3332,7 +4015,9 @@
                     if(!__isExamLike(activeTimeline.mode)) {
                         html += `<td class="p-3 font-bold text-indigo-600">${rec.wtScore}점</td>`;
                     } else {
-                        html += `<td class="p-3 font-black text-rose-600 bg-rose-50/20">${st.examHistory[eIdx(currentSelectedWeekIdx,1)] || 0}점</td>`;
+                        const __drInfo = getExamCellState(st.className, currentSelectedWeekIdx, st.id);
+                        const __drScore = st.examHistory[eIdx(currentSelectedWeekIdx,1)] || 0;
+                        html += `<td class="p-3 font-black text-rose-600 bg-rose-50/20">${__drScore}점 ${examCellBadge(__drInfo)}</td>`;
                     }
                     
                     html += `<td class="p-2 bg-slate-50 flex justify-center items-center"><button onclick="openDirectorReportSmsTerminal(${st.id})" class="bg-indigo-600 text-white font-black px-4 py-1.5 rounded-xl shadow-2xs cursor-pointer"><i class="fa-solid fa-paper-plane mr-1"></i>문자 발송</button></td>`;
@@ -3396,9 +4081,11 @@
                         if (wtBadge) wtBadge.style.display = 'none';
                         const examInline = document.getElementById('st-exam-weekly-inline');
                         if (examInline) examInline.className = '';
-                        // 분석지 버튼 보이기
+                        // 분석지 목록 보이기 (차시 실모 + 클리닉 전부)
                         const stReportBtn = document.getElementById('st-analysis-report-btn');
                         if (stReportBtn) stReportBtn.className = 'mt-2';
+                        renderAnalysisReportList('st-analysis-report-list', targetSt);
+                        renderAnalysisReportList('pr-analysis-report-list', targetSt);
 
                         // ── 이번 차시 점수+평균을 weekly card에 표시 ──
                         const curRound = eIdx(currentSelectedWeekIdx, 1);
@@ -4585,6 +5272,28 @@
             <div class="pt-3 flex gap-2">
                 <button onclick="closeBulkReportModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-xs cursor-pointer">닫기 (발송 안 함)</button>
                 <button id="bulk-report-send-btn" onclick="sendBulkReports()" class="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2 rounded-xl text-xs shadow-2xs cursor-pointer">📨 체크된 학부모에게 전체 발송</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 시험 연동 센터 (원장 전용) -->
+    <div id="exam-link-modal" style="display:none;" class="fixed inset-0 bg-black/60 z-50 items-center justify-center p-4">
+        <div class="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col p-4" onclick="event.stopPropagation()">
+            <div class="flex items-start justify-between mb-2">
+                <div>
+                    <h3 class="font-black text-slate-800 text-sm"><i class="fa-solid fa-link text-violet-600 mr-1"></i> 시험 연동 센터</h3>
+                    <p class="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        분석앱에 등록된 시험지를 <b>차시</b> 또는 <b>클리닉 주차</b>에 직접 짝지어 주세요.<br>
+                        여기서 짝지어 주기 전까지는 <b class="text-rose-600">어떤 점수도 자동으로 반영되지 않습니다.</b>
+                    </p>
+                </div>
+                <button onclick="closeExamLinkCenter()" class="text-slate-400 hover:text-slate-600 font-black text-lg cursor-pointer leading-none">×</button>
+            </div>
+            <div id="exam-link-body" class="flex-1 overflow-y-auto pr-1 custom-scrollbar"></div>
+            <div class="pt-3 flex gap-2 flex-wrap">
+                <button onclick="elcAutoSuggest()" class="flex-1 min-w-[110px] bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-bold py-2 rounded-xl text-[11px] cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles"></i> 자동 매칭 제안</button>
+                <button id="elc-pull-btn" onclick="elcPullScores()" class="flex-1 min-w-[110px] bg-violet-600 hover:bg-violet-700 text-white font-black py-2 rounded-xl text-[11px] shadow-2xs cursor-pointer"><i class="fa-solid fa-rotate"></i> 최신 점수 다시 가져오기</button>
+                <button onclick="closeExamLinkCenter()" class="flex-1 min-w-[80px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-[11px] cursor-pointer">닫기</button>
             </div>
         </div>
     </div>
