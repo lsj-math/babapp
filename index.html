@@ -24,6 +24,55 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Supabase 연결 라이브러리 (영구 저장) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- ══════════════════════════════════════════════════════════════
+         무단 복제 방지 · 도메인 잠금
+         ──────────────────────────────────────────────────────────────
+         이 파일을 복사해 다른 주소에 올려도 실행되지 않습니다.
+
+         ⚠️ 새 주소에 배포했다면 아래 allow 목록에 그 주소(호스트)를 추가하세요.
+            차단 화면에 현재 주소가 표시되므로 그대로 복사해 넣으면 됩니다.
+            잠금을 잠시 끄려면 enabled 를 false 로 바꾸면 됩니다.
+         ══════════════════════════════════════════════════════════════ -->
+    <script>
+    (function () {
+        var SITE_LOCK = {
+            enabled: true,
+            allow: [
+                'lsj-math.github.io',   // 배포 주소
+                'localhost',
+                '127.0.0.1',
+                ''                      // 파일을 직접 열었을 때(file://)
+            ]
+        };
+        if (!SITE_LOCK.enabled) return;
+        var h = location.hostname;
+        var ok = SITE_LOCK.allow.some(function (a) {
+            return h === a || (a && h.length > a.length && h.slice(-(a.length + 1)) === '.' + a);
+        });
+        if (ok) return;
+
+        window.__SNT_BLOCKED = true;
+        document.documentElement.innerHTML =
+            '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+            '<title>승인되지 않은 주소</title></head>' +
+            '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+            'background:#0f172a;color:#e2e8f0;font-family:-apple-system,\'Malgun Gothic\',sans-serif;padding:24px">' +
+            '<div style="max-width:440px;text-align:center;line-height:1.7">' +
+            '<div style="font-size:40px;margin-bottom:14px">&#128274;</div>' +
+            '<div style="font-size:17px;font-weight:800;margin-bottom:10px">승인되지 않은 주소입니다</div>' +
+            '<div style="font-size:13px;color:#94a3b8;margin-bottom:18px">' +
+            '이 프로그램은 지정된 주소에서만 실행됩니다.<br>' +
+            'SNT 조창성&amp;이승준의 저작물이며 무단 복제&#183;배포&#183;2차 사용을 금합니다.</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-bottom:6px">현재 접속한 주소</div>' +
+            '<div style="font-family:monospace;font-size:13px;background:#1e293b;border:1px solid #334155;' +
+            'border-radius:8px;padding:10px 14px;word-break:break-all;user-select:all">' +
+            (h || '(로컬 파일)') + '</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:16px">' +
+            '본인 소유의 주소라면, 파일 상단 <b style="color:#cbd5e1">SITE_LOCK.allow</b> 목록에 위 주소를 추가하세요.</div>' +
+            '<div style="font-size:10px;color:#475569;margin-top:22px">&#169; 2026 SNT &#51312;&#52285;&#49457;&amp;&#51060;&#49849;&#51452;</div>' +
+            '</div></body>';
+    })();
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background-color: #f1f5f9; color: #1e293b; }
@@ -602,6 +651,10 @@
          [JAVASCRIPT MASTER LOGIC - UNIFIED REVISED COMPLETION]
          ========================================================================= -->
     <script>
+        if (window.__SNT_BLOCKED) throw new Error('SNT: unauthorized host');
+        /* ─ 소유권 표시 (콘솔) ─ */
+        try{console.log('%c SNT 조창성&이승준 관리 시스템 ','background:#1e1b4b;color:#fff;font-weight:bold;padding:3px 8px;border-radius:3px',
+            '\n© 2026 이승준(Seungjun Lee). All Rights Reserved.\n무단 복제·배포·2차 사용을 금합니다. 본 코드의 저작권은 제작자에게 있습니다.');}catch(e){}
         /* =====================================================
            Supabase 저장/불러오기 층 (안전 우선: 기존 로직 위에 얹음)
            - 데이터가 바뀌면 refreshCoreEngine() -> schedulePersist() 로 자동 저장
