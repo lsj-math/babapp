@@ -519,11 +519,6 @@
                             <h4 class="text-xs font-black text-slate-800 flex items-center gap-1.5 mb-3"><i class="fa-solid fa-fire-flame-curved text-rose-600 mr-1"></i> 이번 차시 실전 모의고사 점수</h4>
                             <div id="st-exam-weekly-scores-grid" class="hidden"></div>
                         </div>
-                        <!-- 분석지 버튼 -->
-                        <div id="st-analysis-report-btn" class="hidden">
-                            <div class="text-[11px] font-black text-violet-700 mb-2"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
-                            <div id="st-analysis-report-list" class="space-y-1.5"></div>
-                        </div>
                         <div id="st-clinic-history-zone" class="space-y-2"></div>
                         <div id="st-comment-zone" class="p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
                     </div>
@@ -536,6 +531,11 @@
                         <div class="h-44 flex items-end justify-between px-6 pt-6 border-b border-slate-200 relative bg-slate-50/50 rounded-xl" id="exam-visualization-track"></div>
                         <div class="flex justify-between px-6 text-[8px] font-black text-slate-400 font-mono" id="exam-labels-track"></div>
                         <div id="st-exam-cumulative-list" class="mt-2"></div>
+                        <!-- 회차별 분석지 — 누적 성적표 바로 아래에 회차가 쌓이며 내려감 -->
+                        <div id="st-analysis-report-btn" class="hidden">
+                            <div class="text-[11px] font-black text-violet-700 mb-2 pt-3 border-t border-slate-200"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
+                            <div id="st-analysis-report-list" class="space-y-1.5"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -568,11 +568,6 @@
                         <h4 class="text-xs font-black text-slate-800 flex items-center gap-1.5 mb-3"><i class="fa-solid fa-fire-flame-curved text-rose-600 mr-1"></i> 이번 차시 실전 모의고사 점수</h4>
                         <div id="pr-exam-weekly-scores-grid" class="grid grid-cols-2 gap-3"></div>
                     </div>
-                    <!-- 분석지 버튼 -->
-                    <div id="pr-analysis-report-btn" class="hidden mt-3">
-                        <div class="text-[11px] font-black text-violet-700 mb-2"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
-                        <div id="pr-analysis-report-list" class="space-y-1.5"></div>
-                    </div>
                     <div id="pr-clinic-history-zone" class="mt-3 space-y-2"></div>
                     <div id="pr-comment-zone" class="mt-3 p-2.5 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
                 </div>
@@ -592,6 +587,11 @@
                     <div class="h-40 flex items-end justify-between px-6 pt-6 border-b border-slate-300 relative bg-white rounded-xl" id="parent-chart-visualization-track"></div>
                     <div class="flex justify-between px-6 text-[8px] font-black text-slate-400 font-mono" id="parent-chart-labels-track"></div>
                     <div id="pr-exam-cumulative-list" class="mt-2"></div>
+                    <!-- 회차별 분석지 — 누적 성적표 바로 아래에 회차가 쌓이며 내려감 -->
+                    <div id="pr-analysis-report-btn" class="hidden">
+                        <div class="text-[11px] font-black text-violet-700 mb-2 pt-3 border-t border-slate-300"><i class="fa-solid fa-chart-column mr-1"></i> 회차별 분석지</div>
+                        <div id="pr-analysis-report-list" class="space-y-1.5"></div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -615,6 +615,17 @@
         //     ?student_id=..&exam_id=.. 를 붙여 학생별·회차별 분석지를 엽니다.
         // ─────────────────────────────────────────────────────────────
         const ANALYSIS_APP_URL = 'https://lsj-math.github.io/exam-register/report.html';
+
+        /* ─────────────────────────────────────────────────────────────
+           학생·학부모 포털 표시 스위치
+           기능은 그대로 두고 화면 노출만 켜고 끕니다. true 로 바꾸면 바로 살아납니다.
+           ───────────────────────────────────────────────────────────── */
+        const PORTAL_UI = {
+            showRoundScoreList: false,  // 막대그래프 아래 '회차별 점수' 목록
+                                        //  → 위 카드·분석지 목록에 점수가 이미 나와서 중복이라 숨김
+            showTextbookLink:  false,   // '교재 완성도 현황' 버튼 (구글 시트 링크)
+            analysisInApp:     true     // 분석지를 앱 안에서 열기(true) / 새 창으로 열기(false)
+        };
         // =====================================================================
         //  시뮬레이션 모드 스위치
         //  true  : Supabase/Netlify 없이 내장 데모 데이터로 단독 실행 (지금 상태)
@@ -1803,6 +1814,57 @@
            ⚠️ 점수 "반영" 과는 완전히 별개다.
               반영 = examRoundMap 화이트리스트만 / 목록 = 채점된 것 전부.
            단, 원장이 '무시' 처리한 시험만 목록에서도 숨긴다(등록 실수 감추기용).      */
+        /* ── 분석지 뷰어 ──
+           학생·학부모는 앱을 홈 화면에 추가해 쓰기 때문에 새 창(window.open)이 불편합니다.
+           (iOS 홈화면 앱은 새 창이 사파리로 튕기고, 카톡·밴드 내부 브라우저는 팝업을 막습니다)
+           그래서 앱 안에서 iframe으로 띄우고, 혹시 막히는 환경을 대비해 [새 창] 버튼을 항상 같이 둡니다. */
+        let __avTimer = null;
+        function openAnalysisViewer(url, label) {
+            if (!PORTAL_UI.analysisInApp) { window.open(url, '_blank'); return; }
+            const modal = document.getElementById('analysis-viewer-modal');
+            const frame = document.getElementById('analysis-viewer-frame');
+            const load = document.getElementById('analysis-viewer-loading');
+            if (!modal || !frame) { window.open(url, '_blank'); return; }
+
+            document.getElementById('analysis-viewer-title').innerText = label || '분석지';
+            document.getElementById('analysis-viewer-open').href = url;
+            load.style.display = 'flex';
+            load.innerHTML = `<div><div class="w-8 h-8 border-4 border-slate-200 border-t-violet-600 rounded-full mx-auto mb-3 animate-spin"></div>
+                <div class="text-[11px] font-bold text-slate-500">분석지를 불러오는 중…</div></div>`;
+
+            frame.onload = () => { clearTimeout(__avTimer); load.style.display = 'none'; };
+            frame.src = url;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            clearTimeout(__avTimer);
+            __avTimer = setTimeout(() => {
+                // 8초가 지나도 안 열리면(느린 망 또는 iframe 차단) 새 창 안내
+                load.style.display = 'flex';
+                load.innerHTML = `<div class="max-w-xs">
+                    <div class="text-[12px] font-black text-slate-700 mb-1">분석지가 열리지 않네요</div>
+                    <div class="text-[10px] text-slate-500 leading-relaxed mb-3">네트워크가 느리거나, 사용 중인 브라우저가 앱 안에서 보는 것을 막고 있을 수 있어요.</div>
+                    <button onclick="window.open('${__escAttr(url)}','_blank')" class="bg-violet-600 hover:bg-violet-700 text-white font-black px-4 py-2 rounded-xl text-[11px] cursor-pointer">새 창으로 열기</button>
+                    <button onclick="closeAnalysisViewer()" class="ml-1 bg-slate-100 text-slate-600 font-bold px-3 py-2 rounded-xl text-[11px] cursor-pointer">닫기</button>
+                </div>`;
+            }, 8000);
+        }
+        function closeAnalysisViewer() {
+            clearTimeout(__avTimer);
+            const modal = document.getElementById('analysis-viewer-modal');
+            const frame = document.getElementById('analysis-viewer-frame');
+            if (modal) modal.style.display = 'none';
+            if (frame) { frame.onload = null; frame.src = 'about:blank'; }
+            document.body.style.overflow = '';
+        }
+        // 안드로이드 뒤로가기·ESC 로도 닫히게
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                const m = document.getElementById('analysis-viewer-modal');
+                if (m && m.style.display === 'flex') closeAnalysisViewer();
+            }
+        });
+
         function studentAnalysisRows(st) {
             if (!st) return [];
             const labels = buildExamLabels();
@@ -1849,7 +1911,7 @@
                         ? { bar: 'border-l-amber-500', text: 'text-amber-700', chip: 'bg-amber-50 text-amber-700 border-amber-200' }
                         : { bar: 'border-l-rose-500', text: 'text-rose-700', chip: 'bg-rose-50 text-rose-700 border-rose-200' });
                 return `
-                    <button onclick="window.open('${__escAttr(analysisUrlFor(st.id, r.examId))}','_blank')"
+                    <button onclick="openAnalysisViewer('${__escAttr(analysisUrlFor(st.id, r.examId))}','${__escAttr(r.label)}')"
                         class="w-full bg-white border border-slate-200 ${tone.bar} border-l-4 rounded-xl px-3 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-slate-50 transition-all text-left">
                         <div class="flex-1 min-w-0">
                             <div class="text-[12px] font-black text-slate-800 truncate">${__escHtml(r.label)}</div>
@@ -2127,36 +2189,48 @@
             const groups = getClinicWeekGroups(maxW, student.className);
             if (groups.length === 0) { zone.innerHTML = ''; return; }
 
-            let html = '<div class="text-[11px] font-black text-slate-700 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> 클리닉 참석 이력</div>';
+            let rows = '';
             groups.forEach(g => {
                 const att = getClinicAtt(student.className, g.weekNum, student.id);
-                if (!att) return; // 아직 미정이면 표시 안 함
-                const idxLabels = g.weekIdxes.map(w => w + '차시').join(', ');
-                const color = att === '참석' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700';
-                const icon = att === '참석' ? '✅' : '❌';
 
                 // 해당 주차 클리닉 일지 (주차별 키 w1, w2, ...)
-                let clinicNote = ((clinicNotesDb[student.className] || {})[`w${g.weekNum}`] || '').trim();
-                let noteHtml = clinicNote
-                    ? `<div class="text-[9px] text-slate-500 mt-1 pl-2 border-l-2 border-slate-200">[클리닉 일지] ${clinicNote}</div>`
-                    : '';
+                const clinicNote = ((clinicNotesDb[student.className] || {})[`w${g.weekNum}`] || '').trim();
 
                 // 클리닉 실모 점수 (시험대비 주차일 때)
-                let clinicExamHtml = '';
+                let ceScore = null, ceAvgStr = '';
                 if (isExamWeekByGroup(g, student.className)) {
-                    const ceScore = getClinicExamScore(student.className, g.weekNum, student.id);
+                    ceScore = getClinicExamScore(student.className, g.weekNum, student.id);
                     if (ceScore !== null && ceScore !== undefined) {
                         const ceAvg = classClinicExamAvg(student.className, g.weekNum);
-                        const ceAvgStr = ceAvg !== null ? ` (반평균: ${ceAvg}점)` : '';
-                        clinicExamHtml = `<div class="text-[9px] font-bold text-rose-500 mt-0.5">🎯 클리닉 실모: ${ceScore}점${ceAvgStr}</div>`;
-                    }
+                        ceAvgStr = ceAvg !== null ? ` (반평균: ${ceAvg}점)` : '';
+                    } else ceScore = null;
                 }
 
-                html += `<div class="p-2 rounded-lg border ${color} text-[10px] font-bold">
-                    ${icon} ${g.weekNum}주차 클리닉(${idxLabels}) : ${att}${clinicExamHtml}${noteHtml}
+                // ⚠️ 예전에는 참석 체크가 안 되어 있으면 이 주차를 통째로 건너뛰었다.
+                //    그래서 클리닉 실모 점수·일지가 있어도 화면에서 사라졌다.
+                //    이제 셋 중 하나라도 있으면 보여준다.
+                if (!att && ceScore === null && !clinicNote) return;
+
+                const idxLabels = g.weekIdxes.map(w => w + '차시').join(', ');
+                const color = !att ? 'bg-slate-50 border-slate-200 text-slate-600'
+                    : (att === '참석' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                      : 'bg-rose-50 border-rose-200 text-rose-700');
+                const icon = !att ? '▫️' : (att === '참석' ? '✅' : '❌');
+                const attTxt = att || '참석 기록 없음';
+
+                const clinicExamHtml = ceScore !== null
+                    ? `<div class="text-[9px] font-bold text-purple-600 mt-0.5">🎯 클리닉 실모: ${ceScore}점${ceAvgStr}</div>` : '';
+                const noteHtml = clinicNote
+                    ? `<div class="text-[9px] text-slate-500 mt-1 pl-2 border-l-2 border-slate-200">[클리닉 일지] ${__escHtml(clinicNote)}</div>` : '';
+
+                rows += `<div class="p-2 rounded-lg border ${color} text-[10px] font-bold">
+                    ${icon} ${g.weekNum}주차 클리닉(${idxLabels}) : ${attTxt}${clinicExamHtml}${noteHtml}
                 </div>`;
             });
-            zone.innerHTML = html;
+
+            const head = '<div class="text-[11px] font-black text-slate-700 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> 클리닉 주차별 누적 이력</div>';
+            zone.innerHTML = head + (rows ||
+                '<div class="p-2 rounded-lg border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-400">아직 기록된 클리닉 이력이 없습니다.</div>');
         }
 
         // 차시별 과제 (원장이 입력 → 학생/학부모 포털에 표시). 형태: weeklyHwDb[반이름][일차] = "과제 내용"
@@ -2559,7 +2633,7 @@
         async function executeSaveClassNotes() {
             const textarea = document.getElementById('dr-classnotes-textarea');
             if (!textarea) return;
-            const weekNum = getWeekNumber(currentSelectedWeekIdx, st.className || currentGlobalClassFilter);
+            const weekNum = getWeekNumber(currentSelectedWeekIdx, currentGlobalClassFilter);
             if (!classNotesDb[currentGlobalClassFilter]) classNotesDb[currentGlobalClassFilter] = {};
             classNotesDb[currentGlobalClassFilter][`w${weekNum}`] = textarea.value;
             await persistNow();
@@ -4029,8 +4103,11 @@
                 let rec = targetSt.records[currentSelectedWeekIdx];
                 
                 let links = classLinksDb[targetSt.className] || { bandUrl: "#", driveUrl: "#" };
-                const stSheet = document.getElementById('st-google-sheet-link-btn'); if(stSheet) stSheet.href = targetSt.sheetUrl || "#";
-                const prSheet = document.getElementById('pr-google-sheet-link-btn'); if(prSheet) prSheet.href = targetSt.sheetUrl || "#";
+                // 교재 완성도 링크 — href는 계속 채워두고, 노출만 PORTAL_UI 스위치로 제어
+                const stSheet = document.getElementById('st-google-sheet-link-btn');
+                if(stSheet){ stSheet.href = targetSt.sheetUrl || "#"; stSheet.style.display = PORTAL_UI.showTextbookLink ? '' : 'none'; }
+                const prSheet = document.getElementById('pr-google-sheet-link-btn');
+                if(prSheet){ prSheet.href = targetSt.sheetUrl || "#"; prSheet.style.display = PORTAL_UI.showTextbookLink ? '' : 'none'; }
 
                 ['st-notice-display-zone', 'pr-notice-display-zone'].forEach(id => { const el = document.getElementById(id); if(el) el.innerText = targetSt ? __getClassNotice(targetSt.className) : currentGlobalNoticeText; });
 
@@ -4113,12 +4190,14 @@
                         const prWeeklyGrid = document.getElementById('pr-exam-weekly-scores-grid');
                         if (prWeeklyGrid) prWeeklyGrid.innerHTML = scoreCardHtml;
                         const prReportBtn = document.getElementById('pr-analysis-report-btn');
-                        if (prReportBtn) prReportBtn.className = 'mt-3';
+                        if (prReportBtn) prReportBtn.className = '';
 
                         // ── 누적 리스트를 차트 아래 영역에 렌더링 ──
                         const cumList = document.getElementById('st-exam-cumulative-list');
-                        if (cumList) {
-                            const examWeeks = getClassTimeline(st.className || currentGlobalClassFilter).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a,b)=>a-b);
+                        // PORTAL_UI.showRoundScoreList 를 true 로 바꾸면 회차별 점수 목록이 다시 나옵니다.
+                        if (cumList && !PORTAL_UI.showRoundScoreList) cumList.innerHTML = '';
+                        if (cumList && PORTAL_UI.showRoundScoreList) {
+                            const examWeeks = getClassTimeline(targetSt.className || currentGlobalClassFilter).filter(c => __isExamLike(c.mode)).map(c => c.weekIdx).sort((a,b)=>a-b);
                             let examLines = examWeeks.map(ew => {
                                 const round = eIdx(ew, 1);
                                 const myScore = targetSt.examHistory[round] || 0;
@@ -4132,10 +4211,10 @@
                             }).join('');
                             // 클리닉 실모 추가
                             const maxW2 = getClassMaxWeeks(targetSt.className);
-                            const groups2 = getClinicWeekGroups(maxW2, st.className || currentGlobalClassFilter);
+                            const groups2 = getClinicWeekGroups(maxW2, targetSt.className || currentGlobalClassFilter);
                             let clinicExamLines = '';
                             groups2.forEach(g => {
-                                if (!isExamWeekByGroup(g, st.className || currentGlobalClassFilter)) return;
+                                if (!isExamWeekByGroup(g, targetSt.className || currentGlobalClassFilter)) return;
                                 const ceScore = getClinicExamScore(targetSt.className, g.weekNum, targetSt.id);
                                 if (ceScore === null || ceScore === undefined) return;
                                 const ceAvg = classClinicExamAvg(targetSt.className, g.weekNum);
@@ -4190,7 +4269,7 @@
                     const prWeeklyGrid = document.getElementById('pr-exam-weekly-scores-grid');
                     if (prWeeklyGrid) prWeeklyGrid.innerHTML = '';
                     const prReportBtn = document.getElementById('pr-analysis-report-btn');
-                    if (prReportBtn) prReportBtn.className = 'hidden mt-3';
+                    if (prReportBtn) prReportBtn.className = 'hidden';
                     const prCumList = document.getElementById('pr-exam-cumulative-list');
                     if (prCumList) prCumList.innerHTML = '';
                 }
@@ -4534,7 +4613,7 @@
             if (accessMode !== 'staff' || __isLoading) return;
             const now = new Date();
             let target = null;   // { weekIdx(=과제 일차 W), friday, deadline }
-            getClassTimeline(st.className || currentGlobalClassFilter).forEach(cfg => {
+            getClassTimeline(currentGlobalClassFilter).forEach(cfg => {
                 const fri = weekFridays[String(cfg.weekIdx)];
                 if (!fri) return;
                 const deadline = new Date(fri + 'T21:00:00');       // 그 금요일 밤 9시 (로컬 시간)
@@ -4734,7 +4813,7 @@
             const students = studentDb.filter(s => s.className === currentGlobalClassFilter);
             if (students.length === 0) { alert('이 반에 학생이 없습니다.'); return; }
             const listBox = document.getElementById('bulk-report-list');
-            const cfg = getClassTimeline(st.className || currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx) || {};
+            const cfg = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx) || {};
             document.getElementById('bulk-report-subtitle').innerText = `[${currentGlobalClassFilter}] · ${cfg.label || ''} · ${students.length}명 리포트 생성됨 — 내용을 확인·수정하고, 빼고 싶은 학생은 체크를 해제하세요.`;
             listBox.innerHTML = '';
             students.forEach(st => {
@@ -5273,6 +5352,19 @@
                 <button onclick="closeBulkReportModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-xs cursor-pointer">닫기 (발송 안 함)</button>
                 <button id="bulk-report-send-btn" onclick="sendBulkReports()" class="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2 rounded-xl text-xs shadow-2xs cursor-pointer">📨 체크된 학부모에게 전체 발송</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 분석지 뷰어 (학생·학부모 앱 안에서 바로 열림 · 새 창 안 뜸) -->
+    <div id="analysis-viewer-modal" style="display:none;" class="fixed inset-0 bg-slate-900/85 z-[60] flex-col">
+        <div class="bg-white flex items-center gap-2 px-3 py-2 shadow-md shrink-0">
+            <button onclick="closeAnalysisViewer()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-3 py-1.5 rounded-lg text-[11px] cursor-pointer whitespace-nowrap"><i class="fa-solid fa-chevron-left"></i> 닫기</button>
+            <div id="analysis-viewer-title" class="flex-1 text-[11px] font-black text-slate-800 truncate"></div>
+            <a id="analysis-viewer-open" href="#" target="_blank" rel="noopener" class="bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer whitespace-nowrap" title="앱 안에서 잘 안 보이면 새 창으로 여세요"><i class="fa-solid fa-arrow-up-right-from-square"></i> 새 창</a>
+        </div>
+        <div class="flex-1 relative bg-white overflow-hidden">
+            <div id="analysis-viewer-loading" class="absolute inset-0 flex items-center justify-center bg-white z-10 p-6 text-center"></div>
+            <iframe id="analysis-viewer-frame" title="분석지" class="w-full h-full border-0" referrerpolicy="no-referrer-when-downgrade"></iframe>
         </div>
     </div>
 
