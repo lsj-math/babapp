@@ -174,10 +174,10 @@
             <span id="global-mode-indicator" class="text-[10px] font-bold px-2.5 py-1.5 rounded-xl border"></span>
             <span id="global-student-indicator" class="text-[10px] bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-xl text-slate-700 font-medium"></span>
             <nav id="role-nav" class="flex bg-slate-100 p-1 rounded-xl border border-slate-200 font-bold">
-                <button id="tab-director" onclick="switchRoleView('director')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">3. 원장컨트롤룸</button>
-                <button id="tab-assistant" onclick="switchRoleView('assistant')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">2. 조교대시보드</button>
-                <button id="tab-student" onclick="switchRoleView('student')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">1. 학생포털</button>
-                <button id="tab-parent" onclick="switchRoleView('parent')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">학부모 포털</button>
+                <button id="tab-director" onclick="switchRoleView('director')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">1. 원장 컨트롤룸</button>
+                <button id="tab-assistant" onclick="switchRoleView('assistant')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">2. 조교 대시보드</button>
+                <button id="tab-student" onclick="switchRoleView('student')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">3. 학생 포털</button>
+                <button id="tab-parent" onclick="switchRoleView('parent')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer">4. 학부모 포털</button>
             </nav>
             <button id="top-logout-btn" onclick="doStaffLogout()" style="display:none;" class="text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1.5 rounded-xl text-slate-700 font-bold cursor-pointer whitespace-nowrap"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
         </div>
@@ -1042,8 +1042,17 @@
                ⚠️ 앞으로만 진행시킵니다(뒤로는 안 되돌림). 원장이 일부러 앞 차시로
                   지정해 둔 경우를 덮어쓰지 않기 위해서입니다.                        */
             try {
-                Object.keys(classScheduleConfig || {}).forEach(cn => {
-                    if (!getClassStartDate(cn)) return;              // 시작일이 없으면 자동 계산 대상 아님
+                // ⚠️ 예전에는 classScheduleConfig 에 이미 들어 있는 반만 돌았습니다.
+                //    원장페이지에서 한 번도 안 건드린 반은 그 목록에 없어서 통째로 빠졌고,
+                //    그래서 "어떤 반은 ★이 따라오는데 어떤 반은 1차시에 멈춰" 있었습니다.
+                //    이제 등록된 모든 반을 훑습니다.
+                const __allClasses = new Set([
+                    ...Object.keys(classLinksDb || {}),
+                    ...Object.keys(classScheduleConfig || {})
+                ]);
+                __allClasses.forEach(cn => {
+                    if (!cn) return;
+                    if (!getClassStartDate(cn)) return;              // 시작일이 없으면 날짜 계산 자체가 불가 (화면에 안내를 띄움)
                     const calc = calcActiveWeekIdx(cn);
                     const maxW = getClassMaxWeeks(cn);
                     if (calc > getClassActiveWeekIdx(cn) && calc <= maxW) setClassActiveWeekIdx(cn, calc);
@@ -1266,13 +1275,13 @@
            같이 관리하는 동료 강사에게 "보기만" 허용할 때 이메일을 넣습니다.
            소문자로 적어 주세요. 여기에 없는 계정은 예전과 똑같이 동작합니다.
 
-           예) const VIEWER_EMAILS = ['jochangseong1004@gmail.com'];
+           예) const VIEWER_EMAILS = ['teacher@gmail.com', 'kim@naver.com'];
 
            ⚠️ 화면에서 버튼을 숨기고 저장을 막는 방식입니다.
               실수로 지우거나 덮어쓰는 것은 확실히 막지만,
               개발자도구를 쓸 줄 아는 사람까지 막으려면 Supabase RLS가 필요합니다.
            ───────────────────────────────────────────────────────────── */
-        const VIEWER_EMAILS = ['jochangseong1004@gmail.com'];
+        const VIEWER_EMAILS = [];
 
         let staffRole = 'director';   // 'director' | 'assistant' | 'viewer' — 로그인 시 이메일로 결정
         const isViewer = () => staffRole === 'viewer';
@@ -2741,10 +2750,14 @@
                     dateInfo = ` (${d.getMonth()+1}/${d.getDate()})`;
                 }
                 const __isNowActive = currentSelectedWeekIdx === getClassActiveWeekIdx(__cn);
+                // 시작일이 비어 있으면 날짜로 차시를 계산할 수가 없어 ★이 1차시에 멈춰 있게 됩니다.
+                // 그동안 조용히 넘어가서 "왜 이 반만 안 따라오지?" 하게 됐던 부분 — 이제 대놓고 알려줍니다.
+                const __noStart = !getClassStartDate(__cn);
                 infoDiv.className = "flex items-center gap-2 mt-2 flex-wrap";
                 infoDiv.innerHTML = `
                     <span class="text-[9px] text-slate-400">📍 현재 활성: <b class="text-amber-600">${activeLabel}${dateInfo} ★</b> — 학생·학부모 앱에서 이 차시가 자동으로 열립니다</span>
                     ${__isNowActive ? '' : `<button onclick="setCurrentActiveWeek()" title="지금 보고 있는 차시를 학생·학부모 앱에 열릴 차시로 지정합니다" class="text-[9px] font-black text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg cursor-pointer whitespace-nowrap">★ 이 차시를 활성으로</button>`}
+                    ${__noStart ? `<span class="text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">⚠️ 이 반은 <b>1차시 시작일</b>이 비어 있어 날짜에 따른 자동 진행이 안 됩니다 — 원장컨트롤룸 → 시즌 스케줄에서 시작일을 넣어 주세요</span>` : ''}
                 `;
                 container.appendChild(infoDiv);
             }
