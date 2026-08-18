@@ -1272,7 +1272,7 @@
               실수로 지우거나 덮어쓰는 것은 확실히 막지만,
               개발자도구를 쓸 줄 아는 사람까지 막으려면 Supabase RLS가 필요합니다.
            ───────────────────────────────────────────────────────────── */
-        const VIEWER_EMAILS = [];
+        const VIEWER_EMAILS = ['jochangseong1004@gmail.com'];
 
         let staffRole = 'director';   // 'director' | 'assistant' | 'viewer' — 로그인 시 이메일로 결정
         const isViewer = () => staffRole === 'viewer';
