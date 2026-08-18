@@ -778,6 +778,7 @@
         }
         async function __doPersist() {
             if (SIMULATION_MODE) return;   // 시뮬레이션: 저장 생략
+            if (isViewer()) return;        // 조회 전용 계정은 쓰기 금지 (beforeunload 경로까지 차단)
             await Promise.all([
                 __up('students', __mapStudents(), 'id'),
                 __up('class_links', __mapLinks(), 'class_name'),
@@ -839,6 +840,9 @@
             if (SIMULATION_MODE) return;   // 시뮬레이션: 저장 생략
             if (__isLoading) return true;
             if (accessMode !== 'staff') return true;   // 학생·학부모는 DB에 쓰지 않음(명단·점수 테이블 보호)
+            // ⚠️ 조회 전용 계정 — 어떤 경로로 값이 바뀌어도 여기서 전부 막힙니다.
+            //    화면 버튼 숨김과 별개로, 저장을 통과시키지 않는 마지막 방어선입니다.
+            if (isViewer()) return true;
             const snap = __stateSnapshot();
             if (snap !== null && snap === __lastSyncedSnapshot) return true;   // 이 탭에서 바뀐 게 없음 → 저장 안 함(덮어쓰기 방지)
             try {
@@ -1019,6 +1023,22 @@
                 if (!silent) alert('창고(Supabase) 연결에 문제가 있어요.\n인터넷/설정을 확인해 주세요.\n(지금은 임시로 기본 데이터로 실행됩니다)');
             }
             sortStudentsByName();   // 불러온 명단을 가나다순으로 정렬
+
+            /* ── 활성 차시 자동 진행 ──
+               '현재 활성 차시'는 원래 1차시 시작일 기준으로 자동 결정되는 값인데,
+               그동안은 원장이 원장페이지에서 시작일/시작요일을 다시 적용할 때만 갱신돼서
+               날짜가 지나도 계속 같은 차시에 머물러 있었습니다.
+               ⚠️ 앞으로만 진행시킵니다(뒤로는 안 되돌림). 원장이 일부러 앞 차시로
+                  지정해 둔 경우를 덮어쓰지 않기 위해서입니다.                        */
+            try {
+                Object.keys(classScheduleConfig || {}).forEach(cn => {
+                    if (!getClassStartDate(cn)) return;              // 시작일이 없으면 자동 계산 대상 아님
+                    const calc = calcActiveWeekIdx(cn);
+                    const maxW = getClassMaxWeeks(cn);
+                    if (calc > getClassActiveWeekIdx(cn) && calc <= maxW) setClassActiveWeekIdx(cn, calc);
+                });
+            } catch (e) { console.warn('[활성 차시 자동 진행] 건너뜀', e); }
+
             __lastSyncedSnapshot = __stateSnapshot();   // 방금 창고와 맞춘 상태를 기준점으로 기록
 
             // ── 시험분석앱 연동: 원본 로드 → 매핑된 것만 점수 반영 ──
@@ -1228,7 +1248,24 @@
         // 아래 목록의 이메일로 로그인하면 '원장'(원장컨트롤룸 + 조교대시보드 모두 사용),
         // 그 외 계정은 '조교'(조교대시보드만 사용).  원장을 추가하려면 이메일을 한 줄 더 넣으면 됨.
         const DIRECTOR_EMAILS = ['babapp87@gmail.com'];
-        let staffRole = 'director';   // 로그인 시 이메일로 결정됨
+
+        /* ─────────────────────────────────────────────────────────────
+           조회 전용(참관) 계정
+           ─────────────────────────────────────────────────────────────
+           같이 관리하는 동료 강사에게 "보기만" 허용할 때 이메일을 넣습니다.
+           소문자로 적어 주세요. 여기에 없는 계정은 예전과 똑같이 동작합니다.
+
+           예) const VIEWER_EMAILS = ['teacher@gmail.com', 'kim@naver.com'];
+
+           ⚠️ 화면에서 버튼을 숨기고 저장을 막는 방식입니다.
+              실수로 지우거나 덮어쓰는 것은 확실히 막지만,
+              개발자도구를 쓸 줄 아는 사람까지 막으려면 Supabase RLS가 필요합니다.
+           ───────────────────────────────────────────────────────────── */
+        const VIEWER_EMAILS = [];
+
+        let staffRole = 'director';   // 'director' | 'assistant' | 'viewer' — 로그인 시 이메일로 결정
+        const isViewer = () => staffRole === 'viewer';
+        const ROLE_LABEL = { director: '원장', assistant: '조교', viewer: '조회 전용' };
         let accessMode = "staff";      // 'staff' | 'student' | 'parent'
         let lockedStudentId = null;    // 학생/학부모 링크로 들어온 경우 그 학생 id
         let staffPassword = "0000";    // 관리자(조교/원장) 암호 (원장 페이지에서 변경)
@@ -1983,6 +2020,45 @@
             }).join('');
         }
 
+        /* ── 조회 전용 계정 화면 잠금 ──
+           저장은 이미 persistState에서 막히지만, 눌러도 아무 일이 없으면 혼란스러우므로
+           값을 바꾸는 요소는 아예 못 만지게 하고 위험한 버튼은 감춥니다.
+           반/학생/차시 전환처럼 '보기 위한' 조작은 그대로 둡니다.            */
+        const __VIEWER_DANGER = /executeDelete|deleteExam|executeDeploy|doUpdatePassword|sendBulk|openBulkReport|openDirectorReportSmsTerminal|__bulkPersonalizedSend|archiveSeason|executeArchive|executeRestore|elc[A-Z]|openExamLinkCenter|openEditStudent|executeAddStudent|addStudent|handleSeasonMaxWeeks|applyStartD|toggleWtNotHeld|setCurrentActiveWeek|executeSave|syncMemoryField|setExamScoreManual|setClinic/;
+        const __VIEWER_KEEP_IDS = ['global-class-filter-select', 'global-student-select', 'staff-login-email', 'staff-login-password'];
+
+        function applyViewerLock() {
+            if (!isViewer()) return;
+            // 데이터 입력 요소 잠그기 (내비게이션용 드롭다운은 예외)
+            document.querySelectorAll('#panel-assistant input, #panel-assistant select, #panel-assistant textarea, #panel-director input, #panel-director select, #panel-director textarea')
+                .forEach(function (el) {
+                    if (__VIEWER_KEEP_IDS.indexOf(el.id) >= 0) return;
+                    el.disabled = true;
+                    el.style.background = '#F1F5F9';
+                    el.style.color = '#64748B';
+                    el.style.cursor = 'not-allowed';
+                    el.title = '조회 전용 계정입니다 - 수정할 수 없습니다';
+                });
+            // 값을 바꾸는 버튼 감추기
+            document.querySelectorAll('button, a').forEach(function (el) {
+                var h = el.getAttribute('onclick') || '';
+                if (h && __VIEWER_DANGER.test(h)) el.style.display = 'none';
+            });
+        }
+
+        // 조회 전용 안내 배너 (상단에 한 번만)
+        function renderViewerBanner() {
+            var old = document.getElementById('viewer-mode-banner');
+            if (!isViewer()) { if (old) old.remove(); return; }
+            if (old) return;
+            var main = document.querySelector('main') || document.body;
+            var div = document.createElement('div');
+            div.id = 'viewer-mode-banner';
+            div.className = 'bg-sky-50 border border-sky-200 text-sky-800 rounded-xl px-4 py-2.5 mb-3 flex items-center gap-2 text-[11px] font-bold';
+            div.innerHTML = '<i class="fa-solid fa-eye"></i> 조회 전용 계정으로 접속했습니다 - 성적·명단·분석지를 보실 수 있고, <b>수정·삭제·문자 발송은 되지 않습니다.</b>';
+            main.insertBefore(div, main.firstChild);
+        }
+
         // 원장 페이지 카드에 표시할 한 줄 요약
         function renderExamLinkSummary() {
             const box = document.getElementById('dr-exam-link-summary');
@@ -2565,7 +2641,7 @@
             if (accessMode === 'student' && roleKey !== 'student') return;
             if (accessMode === 'parent' && roleKey !== 'parent') return;
             // 조교는 원장컨트롤룸 사용 불가
-            if (staffRole === 'assistant' && roleKey === 'director') { alert('원장컨트롤룸은 원장만 사용할 수 있어요.'); return; }
+            if (staffRole !== 'director' && roleKey === 'director') { alert('원장컨트롤룸은 원장만 사용할 수 있어요.'); return; }
             currentRoleView = roleKey;
             const panels = ['director', 'assistant', 'student', 'parent'];
             panels.forEach(p => {
@@ -2612,8 +2688,11 @@
                     const d = dates[getClassActiveWeekIdx(__cn)];
                     dateInfo = ` (${d.getMonth()+1}/${d.getDate()})`;
                 }
+                const __isNowActive = currentSelectedWeekIdx === getClassActiveWeekIdx(__cn);
+                infoDiv.className = "flex items-center gap-2 mt-2 flex-wrap";
                 infoDiv.innerHTML = `
                     <span class="text-[9px] text-slate-400">📍 현재 활성: <b class="text-amber-600">${activeLabel}${dateInfo} ★</b> — 학생·학부모 앱에서 이 차시가 자동으로 열립니다</span>
+                    ${__isNowActive ? '' : `<button onclick="setCurrentActiveWeek()" title="지금 보고 있는 차시를 학생·학부모 앱에 열릴 차시로 지정합니다" class="text-[9px] font-black text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg cursor-pointer whitespace-nowrap">★ 이 차시를 활성으로</button>`}
                 `;
                 container.appendChild(infoDiv);
             }
@@ -4009,6 +4088,11 @@
             renderBroadcastTargets();       // 공통 문자 — 받는 사람 선택 목록
             renderAppLinkSender();          // 원장 — 앱 링크 보낼 학생 선택 목록
             renderExamLinkSummary();        // 원장 — 시험 분석앱 연동 현황 한 줄 요약
+            // 조회 전용 계정 화면 잠금
+            // ⚠️ 표·카드가 이 뒤에 다시 그려지므로, 렌더가 끝난 다음에 한 번 더 걸어야 한다.
+            renderViewerBanner();
+            applyViewerLock();
+            if (isViewer()) setTimeout(applyViewerLock, 0);
             let hasClinicMgr = document.getElementById('dr-clinic-attendance-zone'); if(hasClinicMgr) buildDirectorClinicAttendanceManager();
             let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx); if(!activeTimeline) return;
             let currentBooks = ((weeklyBooksDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || [];
@@ -4942,6 +5026,11 @@
         // send-sms 함수 호출 공통 헬퍼. functions.invoke 대신 직접 fetch로 호출해
         // apikey(anon)와 스태프 토큰을 명시적으로 실어 관문 문제를 피한다.
         async function __invokeSendSms(studentIds, message, target) {
+            // 조회 전용 계정은 문자 발송 금지 (학부모에게 잘못 나가는 사고 방지)
+            if (isViewer()) {
+                alert('조회 전용 계정입니다.\n문자 발송은 원장·조교 계정에서만 가능합니다.');
+                return { ok: false, sent: 0, failed: 0, total: 0, blocked: true };
+            }
             if (SIMULATION_MODE) {
                 console.log('[시뮬레이션 · 실제 발송 안 함]', target, studentIds, message);
                 const t = Array.isArray(studentIds) ? studentIds.length : 1;
@@ -5311,22 +5400,24 @@
                 const { data: { user } } = await sb.auth.getUser();
                 email = (user && user.email) ? user.email : '';
             } catch (e) { /* 무시 */ }
-            staffRole = DIRECTOR_EMAILS.includes(email.trim().toLowerCase()) ? 'director' : 'assistant';
+            const __em = email.trim().toLowerCase();
+            staffRole = VIEWER_EMAILS.map(x => String(x).trim().toLowerCase()).includes(__em) ? 'viewer'
+                      : (DIRECTOR_EMAILS.includes(__em) ? 'director' : 'assistant');
 
             // 2) 조교면 원장컨트롤룸 탭 숨김
             const dirTab = document.getElementById('tab-director');
-            if (dirTab) dirTab.style.display = (staffRole === 'assistant') ? 'none' : '';
+            if (dirTab) dirTab.style.display = (staffRole === 'director') ? '' : 'none';
 
             // 로그아웃 버튼은 원장·조교 모두에게 상단 바에 표시
             const logoutBtn = document.getElementById('top-logout-btn');
             if (logoutBtn) {
                 logoutBtn.style.display = '';
-                logoutBtn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> 로그아웃${staffRole === 'director' ? ' (원장)' : ' (조교)'}`;
+                logoutBtn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> 로그아웃 (${ROLE_LABEL[staffRole] || '조교'})`;
             }
 
             // 3) 로그인 정보 표시 (이메일 + 역할)
             const emEl = document.getElementById('staff-current-email');
-            if (emEl) emEl.textContent = email + (staffRole === 'director' ? ' (원장)' : ' (조교)');
+            if (emEl) emEl.textContent = email + ` (${ROLE_LABEL[staffRole] || '조교'})`;
 
             // 4) 화면 구성 (조교는 조교대시보드로 진입)
             updateGlobalClassFilterDropdown();
