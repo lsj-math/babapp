@@ -11,7 +11,11 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- ⚠️ viewport-fit=cover 를 일부러 뺐습니다.
+         이 값이 있으면 홈 화면 앱에서 페이지가 시계·배터리 줄(상태바) 아래까지 깔려
+         화면 맨 위 버튼이 상태바에 가려 손가락이 안 닿습니다.
+         빼두면 iOS·안드로이드가 알아서 상태바만큼 내려서 그려 줍니다. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- ── 캐시 무효화 ──────────────────────────────────────────────
          브라우저가 이 파일을 저장해 두면, 새로 배포해도 예전 화면이 계속 보입니다.
          홈 화면에 추가(PWA)로 쓰는 경우 특히 오래 남습니다.
@@ -20,7 +24,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>SNT Management System - 마스터피스 v1.88</title>
+    <title>SNT Management System - 마스터피스 v1.89</title>
     <!-- ── 배포 버전 ──
          화면 좌측 상단(로고 아래)에 'v1.87 · 2026-08-22' 형태로 찍힙니다.
          · 배포가 실제로 반영됐는지 앱만 열어보면 바로 확인됩니다
@@ -29,7 +33,7 @@
          ⚠️ 파일을 고칠 때마다 아래 두 값을 함께 바꿔 주세요.
             제목(<title>)은 APP_VERSION 값을 따라 자동으로 맞춰집니다. -->
     <script>
-      window.APP_VERSION = "1.88";
+      window.APP_VERSION = "1.89";
       window.APP_BUILD   = "2026-08-25";
       document.addEventListener("DOMContentLoaded", function () {
         document.title = "SNT Management System - 마스터피스 v" + window.APP_VERSION;
@@ -41,7 +45,9 @@
     <meta name="theme-color" content="#1e1b4b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- black-translucent 는 상태바를 투명하게 만들어 페이지가 그 아래로 깔립니다.
+         default 로 두면 상태바가 제자리를 차지하고 내용은 그 아래에서 시작합니다. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" id="meta-apple-title" content="SNT관리">
     <!-- Tailwind CSS 및 FontAwesome 아이콘 로드 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -221,43 +227,50 @@
     } catch (e) { return false; }
   }
 
-  /* env(safe-area-inset-top) 값을 '실제로 재서' CSS 변수 --safe-top 에 넣습니다.
-     CSS 안에서 env() 를 바로 쓰면, 아이폰 홈 화면 앱에서 값이 0으로 오는 경우가 있어
-     [닫기]·[새 창] 줄이 그대로 상태바에 겹쳐 버립니다. 그래서 눈에 안 보이는 자를
-     하나 만들어 높이를 직접 재고, 0이면 기기에 맞는 값을 대신 넣습니다. */
+  /* 상태바(노치) 여백 처리
+     ─────────────────────────────────────────────────────────────
+     이 파일은 <head> 에서 viewport-fit=cover 를 빼고 상태바 스타일을 default 로
+     바꿨습니다. 그래서 iOS·안드로이드가 알아서 상태바만큼 내려서 페이지를 그립니다.
+     즉 평소에는 아래 값이 0 이고, 아무것도 더하지 않습니다.
+     혹시 나중에 누가 viewport-fit=cover 를 다시 넣더라도 그때는 env() 값이
+     실제로 잡히므로, 그 값을 재서 --safe-top 에 넣어 두면 화면이 그대로 버팁니다.
+     ※ 여기서 임의의 숫자를 더하면 상태바 아래로 안 깔리는 기기에서
+       위쪽에 빈 띠가 생기므로, '실제로 잰 값'만 씁니다. */
   function applySafeTop() {
     var inset = 0;
     try {
       var probe = document.createElement('div');
-      probe.style.cssText = 'position:fixed;top:0;left:0;width:0;' +
-        'height:env(safe-area-inset-top,0px);height:constant(safe-area-inset-top,0px);' +
-        'visibility:hidden;pointer-events:none;';
+      probe.style.position = 'fixed';
+      probe.style.top = '0';
+      probe.style.left = '0';
+      probe.style.width = '0';
+      probe.style.visibility = 'hidden';
+      probe.style.pointerEvents = 'none';
+      probe.style.setProperty('height', 'env(safe-area-inset-top, 0px)');
       document.body.appendChild(probe);
-      inset = Math.round(probe.getBoundingClientRect().height);
+      inset = Math.round(probe.getBoundingClientRect().height) || 0;
       probe.parentNode.removeChild(probe);
     } catch (e) { inset = 0; }
 
-    if (isStandalone() && inset < 1) {
-      // 홈 화면 앱인데 0으로 나왔다 = 값을 안 주는 기기. 상태바 높이를 추정해서 넣는다.
-      var ua = navigator.userAgent || '';
-      var isIOS = /iPad|iPhone|iPod/.test(ua) ||
-                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      if (isIOS) {
-        var h = Math.max(screen.height || 0, screen.width || 0);
-        inset = (h >= 812) ? 47 : 20;    // 노치·다이나믹아일랜드 기기 / 그 이전 기기
-      } else {
-        inset = 24;                       // 안드로이드 표준 상태바
-      }
-    }
     document.documentElement.style.setProperty('--safe-top', inset + 'px');
     document.body.classList.toggle('standalone-app', isStandalone());
+
+    // 화면이 이상할 때 원인을 바로 알 수 있도록 버전 줄에 값을 남깁니다.
+    // (T = 상태바 여백, S = 홈 화면 앱 여부)
+    try {
+      var v = document.getElementById('app-version');
+      if (v && window.APP_VERSION) {
+        v.textContent = 'v' + window.APP_VERSION + ' · ' + window.APP_BUILD +
+                        ' · T' + inset + ' S' + (isStandalone() ? 1 : 0);
+      }
+    } catch (e) {}
   }
 
   try {
     applySafeTop();
     window.addEventListener('resize', applySafeTop);
     window.addEventListener('orientationchange', function () { setTimeout(applySafeTop, 250); });
-    document.addEventListener('DOMContentLoaded', applySafeTop);
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(applySafeTop, 0); });
   } catch (e) {}
 })();
 </script>
