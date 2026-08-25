@@ -20,7 +20,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>SNT Management System - 마스터피스 v1.87</title>
+    <title>SNT Management System - 마스터피스 v1.88</title>
     <!-- ── 배포 버전 ──
          화면 좌측 상단(로고 아래)에 'v1.87 · 2026-08-22' 형태로 찍힙니다.
          · 배포가 실제로 반영됐는지 앱만 열어보면 바로 확인됩니다
@@ -29,8 +29,8 @@
          ⚠️ 파일을 고칠 때마다 아래 두 값을 함께 바꿔 주세요.
             제목(<title>)은 APP_VERSION 값을 따라 자동으로 맞춰집니다. -->
     <script>
-      window.APP_VERSION = "1.87";
-      window.APP_BUILD   = "2026-08-22";
+      window.APP_VERSION = "1.88";
+      window.APP_BUILD   = "2026-08-25";
       document.addEventListener("DOMContentLoaded", function () {
         document.title = "SNT Management System - 마스터피스 v" + window.APP_VERSION;
         var el = document.getElementById("app-version");
@@ -116,6 +116,38 @@
         #analysis-viewer-modal > div:last-child { flex: 1 1 auto; min-height: 0; -webkit-overflow-scrolling: touch; }
         #analysis-viewer-frame { width: 100%; height: 100%; border: 0; display: block; }
 
+        /* 상태바(노치) 높이. 기본은 env() 값이지만,
+           아이폰 홈 화면 앱에서 env()가 0으로 오는 경우가 있어
+           아래 스크립트가 실제 값을 재서 이 변수를 덮어씁니다. */
+        :root { --safe-top: env(safe-area-inset-top, 0px); }
+
+        /* ── [닫기 / 새 창] 줄이 상태바에 가려지던 문제 ──
+           이 앱은 viewport-fit=cover + apple-mobile-web-app-status-bar-style=black-translucent 이라
+           홈 화면 앱으로 열면 화면 맨 위(시계·배터리 줄) 아래로 페이지가 그대로 깔립니다.
+           뷰어는 fixed·top:0 이라 그 줄이 딱 상태바 자리에 겹쳐서 손가락이 안 닿았습니다.
+           → 상태바(노치) 높이만큼 바를 내려 앉히고, 버튼도 손가락 크기(44px)로 키웁니다. */
+        #analysis-viewer-bar {
+            padding-top: calc(0.5rem + var(--safe-top, 0px));
+            padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
+            padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
+        }
+        /* 터치 영역 확보 — 예전 [닫기]는 높이가 26px밖에 안 돼서 눌러도 잘 안 먹었습니다 */
+        @media (max-width: 820px) {
+            #analysis-viewer-bar button,
+            #analysis-viewer-bar a {
+                min-height: 40px;
+                box-sizing: border-box;   /* Tailwind 가 안 떠도 [닫기]와 [새 창] 높이가 같게 */
+                display: inline-flex; align-items: center; justify-content: center;
+            }
+            #analysis-viewer-bar { gap: 8px; }
+        }
+
+        /* 상단 글로벌 헤더도 같은 이유로 상태바에 물립니다 — 같이 내려 앉힙니다.
+           (env() 는 PC·일반 브라우저에서 0이므로 기존 화면은 그대로입니다) */
+        body > header { padding-top: calc(0.75rem + var(--safe-top, 0px)) !important; }
+        /* 화면 아래 홈 인디케이터에 마지막 줄이 물리지 않게 */
+        body { padding-bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+
         /* ===== 조회 전용 계정 =====
            리포트발송·삭제 칸은 버튼이 전부 숨겨져 빈 칸만 남으므로 열째로 접습니다.
            (폰에서 가로 폭이 아까워서 특히 필요) */
@@ -156,6 +188,8 @@
 
         /* ── 상단 헤더: 학생·학부모 화면에선 컴팩트하게 + 스크롤하면 사라지게(공간 확보) ── */
         body.portal-locked header { position: static !important; padding: 7px 12px !important; gap: 6px !important; }
+        /* 위 한 줄이 padding 을 통째로 덮어쓰므로, 상태바 여백은 여기서 다시 얹어 줍니다 */
+        body.portal-locked header { padding-top: calc(7px + var(--safe-top, 0px)) !important; }
         body.portal-locked header .p-2 { padding: 6px !important; }
         body.portal-locked header .fa-layer-group { font-size: 13px !important; }
         body.portal-locked header h1 { font-size: 12px !important; }         /* 큰 영문 제목 축소 */
@@ -172,6 +206,61 @@
     </style>
 </head>
 <body class="min-h-screen antialiased text-xs">
+<script>
+/* ── 홈 화면 앱으로 열렸는지 표시 ──
+   홈 화면 앱은 브라우저 주소창이 없어서 페이지가 시계·배터리 줄(상태바) 아래까지 깔립니다.
+   그때 화면 맨 위 버튼([닫기]·[새 창])이 상태바에 가려 손가락이 안 닿았습니다.
+   안드로이드 일부 기기는 env(safe-area-inset-top) 을 0으로 주기 때문에,
+   여기서 body 에 표시를 남겨 CSS 가 최소 여백을 강제로 확보하도록 합니다. */
+(function () {
+  function isStandalone() {
+    try {
+      var mm = function (q) { return window.matchMedia && window.matchMedia(q).matches; };
+      return window.navigator.standalone === true ||
+             mm('(display-mode: standalone)') || mm('(display-mode: fullscreen)') || mm('(display-mode: minimal-ui)');
+    } catch (e) { return false; }
+  }
+
+  /* env(safe-area-inset-top) 값을 '실제로 재서' CSS 변수 --safe-top 에 넣습니다.
+     CSS 안에서 env() 를 바로 쓰면, 아이폰 홈 화면 앱에서 값이 0으로 오는 경우가 있어
+     [닫기]·[새 창] 줄이 그대로 상태바에 겹쳐 버립니다. 그래서 눈에 안 보이는 자를
+     하나 만들어 높이를 직접 재고, 0이면 기기에 맞는 값을 대신 넣습니다. */
+  function applySafeTop() {
+    var inset = 0;
+    try {
+      var probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;top:0;left:0;width:0;' +
+        'height:env(safe-area-inset-top,0px);height:constant(safe-area-inset-top,0px);' +
+        'visibility:hidden;pointer-events:none;';
+      document.body.appendChild(probe);
+      inset = Math.round(probe.getBoundingClientRect().height);
+      probe.parentNode.removeChild(probe);
+    } catch (e) { inset = 0; }
+
+    if (isStandalone() && inset < 1) {
+      // 홈 화면 앱인데 0으로 나왔다 = 값을 안 주는 기기. 상태바 높이를 추정해서 넣는다.
+      var ua = navigator.userAgent || '';
+      var isIOS = /iPad|iPhone|iPod/.test(ua) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        var h = Math.max(screen.height || 0, screen.width || 0);
+        inset = (h >= 812) ? 47 : 20;    // 노치·다이나믹아일랜드 기기 / 그 이전 기기
+      } else {
+        inset = 24;                       // 안드로이드 표준 상태바
+      }
+    }
+    document.documentElement.style.setProperty('--safe-top', inset + 'px');
+    document.body.classList.toggle('standalone-app', isStandalone());
+  }
+
+  try {
+    applySafeTop();
+    window.addEventListener('resize', applySafeTop);
+    window.addEventListener('orientationchange', function () { setTimeout(applySafeTop, 250); });
+    document.addEventListener('DOMContentLoaded', applySafeTop);
+  } catch (e) {}
+})();
+</script>
 
     <!-- 🌐 글로벌 제어 헤더 바 -->
     <header class="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-50 px-6 py-3 flex flex-col xl:flex-row justify-between items-center gap-3 shadow-xs">
@@ -5591,7 +5680,7 @@
 
     <!-- 분석지 뷰어 (학생·학부모 앱 안에서 바로 열림 · 새 창 안 뜸) -->
     <div id="analysis-viewer-modal" style="display:none;" class="fixed inset-0 bg-slate-900/85 z-[60] flex-col">
-        <div class="bg-white flex items-center gap-2 px-3 py-2 shadow-md shrink-0">
+        <div id="analysis-viewer-bar" class="bg-white flex items-center gap-2 px-3 py-2 shadow-md shrink-0">
             <button onclick="closeAnalysisViewer()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-3 py-1.5 rounded-lg text-[11px] cursor-pointer whitespace-nowrap"><i class="fa-solid fa-chevron-left"></i> 닫기</button>
             <div id="analysis-viewer-title" class="flex-1 text-[11px] font-black text-slate-800 truncate"></div>
             <a id="analysis-viewer-open" href="#" target="_blank" rel="noopener" class="bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer whitespace-nowrap" title="앱 안에서 잘 안 보이면 새 창으로 여세요"><i class="fa-solid fa-arrow-up-right-from-square"></i> 새 창</a>
