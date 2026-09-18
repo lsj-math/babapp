@@ -33,8 +33,8 @@
          ⚠️ 파일을 고칠 때마다 아래 두 값을 함께 바꿔 주세요.
             제목(<title>)은 APP_VERSION 값을 따라 자동으로 맞춰집니다. -->
     <script>
-      window.APP_VERSION = "1.89";
-      window.APP_BUILD   = "2026-08-25";
+      window.APP_VERSION = "1.90";
+      window.APP_BUILD   = "2026-09-18";
       document.addEventListener("DOMContentLoaded", function () {
         document.title = "SNT Management System - 마스터피스 v" + window.APP_VERSION;
         var el = document.getElementById("app-version");
@@ -730,6 +730,7 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <a id="st-drive-link-btn" href="#" target="_blank" rel="noopener" style="display:none" class="p-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-center rounded-xl shadow-md flex items-center justify-center gap-2 text-xs"><i class="fa-solid fa-circle-play text-sm"></i> 오답영상 보기</a>
                 <a id="st-google-sheet-link-btn" href="#" target="_blank" class="p-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-center rounded-xl shadow-md flex items-center justify-center gap-2 text-xs"><i class="fa-solid fa-file-invoice text-sm"></i> 교재 완성도 현황</a>
             </div>
         </section>
@@ -814,6 +815,8 @@
             showRoundScoreList: false,  // 막대그래프 아래 '회차별 점수' 목록
                                         //  → 위 카드·분석지 목록에 점수가 이미 나와서 중복이라 숨김
             showTextbookLink:  false,   // '교재 완성도 현황' 버튼 (구글 시트 링크)
+            showWrongVideoLink: true,   // '오답영상 보기' 버튼 (반별 구글 드라이브 링크)
+                                        //  → 원장페이지 '반별 링크 관리'에 주소를 넣은 반에서만 표시됩니다
             analysisInApp:     true     // 분석지를 앱 안에서 열기(true) / 새 창으로 열기(false)
         };
         // =====================================================================
@@ -3045,13 +3048,13 @@
                         <button data-classname="${className}" onclick="executeDeleteClass(this.dataset.classname)" class="text-[9px] font-bold text-rose-400 hover:text-white hover:bg-rose-500 border border-rose-200 hover:border-rose-500 px-1.5 py-0.5 rounded cursor-pointer transition-all"><i class="fa-solid fa-trash mr-0.5"></i>삭제</button>
                     </div>
                     <div class="space-y-1">
-                        <div class="flex items-center gap-1" style="display:none"><span class="text-[8px] text-amber-600 font-bold w-14 shrink-0">📁 드라이브</span><input type="text" id="linkinput-drive-${idx}" value="${classLinksDb[className].driveUrl}" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-amber-600 font-mono text-[9px] focus:outline-none focus:border-amber-400"></div>
+                        <div class="flex items-center gap-1"><span class="text-[8px] text-amber-600 font-bold w-14 shrink-0">🎬 오답영상</span><input type="text" id="linkinput-drive-${idx}" value="${classLinksDb[className].driveUrl}" placeholder="구글 드라이브 폴더 주소 (https://...)" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-amber-600 font-mono text-[9px] focus:outline-none focus:border-amber-400"></div>
                         <div class="flex items-center gap-1"><span class="text-[8px] text-teal-600 font-bold w-14 shrink-0">📊 과제엑셀</span><input type="text" id="linkinput-hwsheet-${idx}" value="${classHwSheets[className] || ''}" placeholder="과제완성도 점검 엑셀 주소" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-teal-600 font-mono text-[9px] focus:outline-none focus:border-teal-400"></div>
                     </div>
-                    <div class="text-[8px] text-slate-400 font-mono pt-1 border-t border-slate-200">현재 적용됨 · 과제엑셀: ${hwSheetDisp}</div>
+                    <div class="text-[8px] text-slate-400 font-mono pt-1 border-t border-slate-200">현재 적용됨 · 오답영상: ${driveDisp} · 과제엑셀: ${hwSheetDisp}</div>
                     <div class="flex items-center gap-1 pt-1">
                         <button data-classname="${className}" onclick="executeSaveClassLinks(this.dataset.classname, ${idx})" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">💾 저장 및 적용</button>
-                        <button data-classname="${className}" onclick="testOpenClassLink(this.dataset.classname, 'driveUrl')" style="display:none" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 드라이브</button>
+                        <button data-classname="${className}" onclick="testOpenClassLink(this.dataset.classname, 'driveUrl')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 오답영상</button>
                         <button data-classname="${className}" onclick="testOpenClassHwSheet(this.dataset.classname)" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 과제엑셀</button>
                     </div>
                 `; container.appendChild(card);
@@ -4437,6 +4440,14 @@
                 if(stSheet){ stSheet.href = targetSt.sheetUrl || "#"; stSheet.style.display = PORTAL_UI.showTextbookLink ? '' : 'none'; }
                 const prSheet = document.getElementById('pr-google-sheet-link-btn');
                 if(prSheet){ prSheet.href = targetSt.sheetUrl || "#"; prSheet.style.display = PORTAL_UI.showTextbookLink ? '' : 'none'; }
+
+                // 오답영상(구글 드라이브) 링크 — 반별 주소가 등록된 반에서만 버튼이 보입니다
+                (function renderWrongVideoLink() {
+                    const dvUrl = (links.driveUrl || '').trim();
+                    const dvOk  = PORTAL_UI.showWrongVideoLink && dvUrl.startsWith('http');
+                    const btn = document.getElementById('st-drive-link-btn');
+                    if (btn) { btn.href = dvOk ? dvUrl : '#'; btn.style.display = dvOk ? '' : 'none'; }
+                })();
 
                 ['st-notice-display-zone', 'pr-notice-display-zone'].forEach(id => { const el = document.getElementById(id); if(el) el.innerText = targetSt ? __getClassNotice(targetSt.className) : currentGlobalNoticeText; });
 
