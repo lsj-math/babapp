@@ -24,7 +24,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>SNT Management System - 마스터피스 v1.89</title>
+    <title>SNT Management System - 마스터피스 v1.91</title>
     <!-- ── 배포 버전 ──
          화면 좌측 상단(로고 아래)에 'v1.87 · 2026-08-22' 형태로 찍힙니다.
          · 배포가 실제로 반영됐는지 앱만 열어보면 바로 확인됩니다
@@ -33,8 +33,8 @@
          ⚠️ 파일을 고칠 때마다 아래 두 값을 함께 바꿔 주세요.
             제목(<title>)은 APP_VERSION 값을 따라 자동으로 맞춰집니다. -->
     <script>
-      window.APP_VERSION = "1.90";
-      window.APP_BUILD   = "2026-09-18";
+      window.APP_VERSION = "1.91";
+      window.APP_BUILD   = "2026-09-21";
       document.addEventListener("DOMContentLoaded", function () {
         document.title = "SNT Management System - 마스터피스 v" + window.APP_VERSION;
         var el = document.getElementById("app-version");
@@ -560,6 +560,12 @@
                 <div id="dr-clinic-attendance-zone" class="space-y-3"></div>
             </div>
 
+            <!-- 직전보강 실전모의고사 (주차별 · 최대 4회) -->
+            <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs space-y-2.5">
+                <h3 class="text-[11px] font-black text-slate-800 uppercase"><i class="fa-solid fa-bolt text-sky-600 mr-1.5"></i> 직전보강 실전모의고사</h3>
+                <div id="dr-boost-exam-zone" class="space-y-3"></div>
+            </div>
+
             <!-- 조교 테이블 -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-2 flex-wrap">
@@ -706,6 +712,7 @@
                             <div id="st-exam-weekly-scores-grid" class="hidden"></div>
                         </div>
                         <div id="st-clinic-history-zone" class="space-y-2"></div>
+                        <div id="st-boost-history-zone" class="space-y-2"></div>
                         <div id="st-comment-zone" class="p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
                     </div>
 
@@ -730,7 +737,6 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                <a id="st-drive-link-btn" href="#" target="_blank" rel="noopener" style="display:none" class="p-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-center rounded-xl shadow-md flex items-center justify-center gap-2 text-xs"><i class="fa-solid fa-circle-play text-sm"></i> 오답영상 보기</a>
                 <a id="st-google-sheet-link-btn" href="#" target="_blank" class="p-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-center rounded-xl shadow-md flex items-center justify-center gap-2 text-xs"><i class="fa-solid fa-file-invoice text-sm"></i> 교재 완성도 현황</a>
             </div>
         </section>
@@ -756,6 +762,7 @@
                         <div id="pr-exam-weekly-scores-grid" class="grid grid-cols-2 gap-3"></div>
                     </div>
                     <div id="pr-clinic-history-zone" class="mt-3 space-y-2"></div>
+                    <div id="pr-boost-history-zone" class="mt-3 space-y-2"></div>
                     <div id="pr-comment-zone" class="mt-3 p-2.5 rounded-xl border bg-amber-50 border-amber-200 text-amber-800 text-xs font-bold leading-relaxed" style="display:none;"></div>
                 </div>
 
@@ -815,8 +822,6 @@
             showRoundScoreList: false,  // 막대그래프 아래 '회차별 점수' 목록
                                         //  → 위 카드·분석지 목록에 점수가 이미 나와서 중복이라 숨김
             showTextbookLink:  false,   // '교재 완성도 현황' 버튼 (구글 시트 링크)
-            showWrongVideoLink: true,   // '오답영상 보기' 버튼 (반별 구글 드라이브 링크)
-                                        //  → 원장페이지 '반별 링크 관리'에 주소를 넣은 반에서만 표시됩니다
             analysisInApp:     true     // 분석지를 앱 안에서 열기(true) / 새 창으로 열기(false)
         };
         // =====================================================================
@@ -938,6 +943,8 @@
                     { key: 'scheduleStartDate', value: '' },  // legacy — 실제 반별 값은 classScheduleConfig에 저장
                     { key: 'clinicWeeklyDb', value: clinicWeeklyDb },
                     { key: 'clinicExamDb', value: clinicExamDb },
+                    { key: 'boostConfigDb', value: boostConfigDb },   // 직전보강 실시 여부·회차 수·진행 주차
+                    { key: 'boostScoreDb', value: boostScoreDb },     // 직전보강 실모 점수
                     // ── 시험분석앱 연동 ──
                     { key: 'examRoundMap', value: examRoundMap },     // 차시↔시험지 매핑(화이트리스트)
                     { key: 'examLinkCache', value: examLinkCache },   // 연동이 써 넣은 값 기억(수동 우선 판별용)
@@ -971,7 +978,7 @@
                     books: __mapBooks(),
                     notes: __mapNotes(),
                     timeline: globalTimelineConfig,
-                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, classScheduleConfig, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb, examRoundMap, examLinkCache]
+                    cfg: [globalSeasonMaxWeeks, classMaxWeeksDb, wtNotHeld, weeklyHwDb, accessTokens, smsTemplates, currentGlobalNoticeText, classNoticeDb, currentSeasonName, staffPassword, autoClinicLog, weekFridays, classHwSheets, classQnaSheets, clinicNotesDb, classScheduleConfig, currentActiveWeekIdx, clinicWeeklyDb, clinicExamDb, boostConfigDb, boostScoreDb, examRoundMap, examLinkCache]
                 });
             } catch (e) { return null; }
         }
@@ -1146,6 +1153,8 @@
                 if (cfgMap.currentActiveWeekIdx) currentActiveWeekIdx = cfgMap.currentActiveWeekIdx;
                 if (cfgMap.clinicWeeklyDb && typeof cfgMap.clinicWeeklyDb === 'object') clinicWeeklyDb = cfgMap.clinicWeeklyDb;
                 if (cfgMap.clinicExamDb && typeof cfgMap.clinicExamDb === 'object') clinicExamDb = cfgMap.clinicExamDb;
+                if (cfgMap.boostConfigDb && typeof cfgMap.boostConfigDb === 'object') boostConfigDb = cfgMap.boostConfigDb;
+                if (cfgMap.boostScoreDb && typeof cfgMap.boostScoreDb === 'object') boostScoreDb = cfgMap.boostScoreDb;
                 if (cfgMap.examRoundMap && typeof cfgMap.examRoundMap === 'object') examRoundMap = cfgMap.examRoundMap;
                 if (cfgMap.examLinkCache && typeof cfgMap.examLinkCache === 'object') examLinkCache = cfgMap.examLinkCache;
                 if (cfgMap.accessTokens && typeof cfgMap.accessTokens === 'object') accessTokens = cfgMap.accessTokens;
@@ -1494,6 +1503,82 @@
             refreshCoreEngine();
         }
 
+        /* ══════════════════════════════════════════════════════════════
+           직전보강(직보) 실전모의고사
+           ──────────────────────────────────────────────────────────────
+           시험 직전 보강 때 한 번만 몰아서 보는 실모. 반(시즌)당 한 자리.
+             · 설정  boostConfigDb[반] = { enabled: 실시 여부, rounds: 1~5, weekNum: 문자 리포트에 붙일 주차 }
+             · 점수  boostScoreDb[반][학생id][회차] = 점수
+           ⚠️ 차시 실모(examHistory)·클리닉 실모(clinicExamDb)와 완전히 따로 저장된다.
+              여기에 몇 회를 넣어도 기존 실모 회차 번호는 밀리지 않는다.
+           ══════════════════════════════════════════════════════════════ */
+        const BOOST_MAX_ROUNDS = 5;
+        let boostConfigDb = {};
+        let boostScoreDb = {};
+
+        // 기본 진행 주차 = 그 반의 마지막 주차(시험 직전)
+        function __defaultBoostWeek(className) {
+            const groups = getClinicWeekGroups(getClassMaxWeeks(className), className);
+            return groups.length ? groups[groups.length - 1].weekNum : 1;
+        }
+        function getBoostConfig(className) {
+            const c = boostConfigDb[className] || {};
+            return {
+                enabled: !!c.enabled,
+                rounds: Math.max(1, Math.min(BOOST_MAX_ROUNDS, Number(c.rounds) || 1)),
+                weekNum: Number(c.weekNum) || __defaultBoostWeek(className)
+            };
+        }
+        function setBoostConfig(className, patch) {
+            boostConfigDb[className] = Object.assign(getBoostConfig(className), patch || {});
+            buildDirectorBoostExamManager();
+            refreshCoreEngine();
+        }
+        function isBoostOn(className) { return getBoostConfig(className).enabled; }
+
+        /* 실제로 열어 둘 회차 수.
+           회차 수를 줄여도 이미 점수가 들어갔거나 시험지가 연동된 회차는 살려 둔다. */
+        function boostRoundsInUse(className) {
+            const cfg = getBoostConfig(className);
+            let n = cfg.enabled ? cfg.rounds : 0;
+            const sc = boostScoreDb[className] || {};
+            Object.keys(sc).forEach(sid => Object.keys(sc[sid] || {}).forEach(r => { if (Number(r) > n) n = Number(r); }));
+            const mb = ((examRoundMap[className] || {}).boost) || {};
+            Object.keys(mb).forEach(r => { if (mb[r] && Number(r) > n) n = Number(r); });
+            return Math.min(BOOST_MAX_ROUNDS, n);
+        }
+        function getBoostExamScore(className, studentId, round) {
+            const v = (((boostScoreDb[className] || {})[studentId] || {})[round]);
+            return (v === undefined || v === null || v === '') ? null : Number(v);
+        }
+        function setBoostExamScore(className, studentId, round, score) {
+            if (!boostScoreDb[className]) boostScoreDb[className] = {};
+            if (!boostScoreDb[className][studentId]) boostScoreDb[className][studentId] = {};
+            if (score === null || score === undefined || score === '' || Number.isNaN(Number(score)))
+                delete boostScoreDb[className][studentId][round];
+            else
+                boostScoreDb[className][studentId][round] = Number(score);
+            refreshCoreEngine();
+        }
+        function classBoostExamAvg(className, round) {
+            const scores = studentDb.filter(s => s.className === className)
+                .map(s => getBoostExamScore(className, s.id, round))
+                .filter(v => v !== null && v > 0);
+            if (scores.length === 0) return null;
+            return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+        }
+        // 학생 1명의 직전보강 점수 목록 — 문자·포털이 함께 쓴다
+        function boostScoresOf(className, studentId) {
+            const out = [];
+            const n = boostRoundsInUse(className);
+            for (let r = 1; r <= n; r++) {
+                const sc = getBoostExamScore(className, studentId, r);
+                if (sc === null) continue;
+                out.push({ round: r, score: sc, avg: classBoostExamAvg(className, r) });
+            }
+            return out;
+        }
+
         /* ═══════════════════════════════════════════════════════════════
            시험분석앱(SNT 시험 분석 시스템) 연동 계층
            ───────────────────────────────────────────────────────────────
@@ -1518,7 +1603,8 @@
         const EXAM_CATS = {
             mock:   { label: '실전모의고사', color: 'rose',   desc: '매 차시 실모' },
             clinic: { label: '클리닉',      color: 'purple', desc: '클리닉 시험' },
-            retest: { label: '재시험',      color: 'amber',  desc: '재시험' }
+            retest: { label: '재시험',      color: 'amber',  desc: '재시험' },
+            boost:  { label: '직전보강',    color: 'sky',    desc: '시험 직전보강 실모' }
         };
         const examCatLabel = c => (EXAM_CATS[c] || EXAM_CATS.mock).label;
 
@@ -1530,10 +1616,11 @@
         }
 
         function __mapFor(className) {
-            if (!examRoundMap[className]) examRoundMap[className] = { main: {}, clinic: {}, ignore: [] };
+            if (!examRoundMap[className]) examRoundMap[className] = { main: {}, clinic: {}, boost: {}, ignore: [] };
             const m = examRoundMap[className];
             if (!m.main) m.main = {};
             if (!m.clinic) m.clinic = {};
+            if (!m.boost) m.boost = {};
             if (!Array.isArray(m.ignore)) m.ignore = [];
             return m;
         }
@@ -1559,6 +1646,7 @@
             let written = 0;
             if (!examLinkCache.main) examLinkCache.main = {};
             if (!examLinkCache.clinic) examLinkCache.clinic = {};
+            if (!examLinkCache.boost) examLinkCache.boost = {};
 
             Object.keys(examRoundMap).forEach(cn => {
                 const m = __mapFor(cn);
@@ -1603,6 +1691,27 @@
                         written++;
                     });
                 });
+
+                // ③ 직전보강 실모 → boostScoreDb[반][학생][회차]
+                Object.keys(m.boost || {}).forEach(key => {
+                    const examId = m.boost[key];
+                    const round = Number(key);
+                    if (!examId || !round) return;
+                    __gradedResults(examId).forEach(r => {
+                        const st = studentDb.find(s => String(s.id) === String(r.student_id) && s.className === cn);
+                        if (!st) return;
+                        const ck = `${st.id}-b${round}`;
+                        const cur = getBoostExamScore(cn, st.id, round);
+                        const cached = Number(examLinkCache.boost[ck] ?? NaN);
+                        if (cur !== null && cur > 0 && cur !== cached) return;   // 손입력이 이긴다
+                        if (cur !== null && Number(cur) === Number(r.total_score)) { examLinkCache.boost[ck] = Number(r.total_score); return; }
+                        if (!boostScoreDb[cn]) boostScoreDb[cn] = {};
+                        if (!boostScoreDb[cn][st.id]) boostScoreDb[cn][st.id] = {};
+                        boostScoreDb[cn][st.id][round] = Number(r.total_score);
+                        examLinkCache.boost[ck] = Number(r.total_score);
+                        written++;
+                    });
+                });
             });
             return written;
         }
@@ -1624,6 +1733,14 @@
                     const g = getClinicWeekGroups(maxW, cn).find(x => x.weekNum === Number(wn));
                     const anchor = g ? Math.max(...g.weekIdxes) : Number(wn) * 2;
                     labels[id] = { label: `실전모의고사(클리닉${getClinicExamRound(Number(wn), cn)}회)`, kind: 'clinic', order: anchor * 10 + 5 };
+                });
+                Object.keys(m.boost || {}).forEach(key => {
+                    const id = m.boost[key]; if (!id) return;
+                    const round = Number(key); if (!round) return;
+                    const bw = getBoostConfig(cn).weekNum;
+                    const g = getClinicWeekGroups(getClassMaxWeeks(cn), cn).find(x => x.weekNum === Number(bw));
+                    const anchor = g ? Math.max(...g.weekIdxes) : Number(bw) * 2;
+                    labels[id] = { label: `실전모의고사(직전보강${round}회)`, kind: 'boost', order: anchor * 10 + 7 + round * 0.1 };
                 });
             });
             return labels;
@@ -1726,6 +1843,7 @@
             const m = __mapFor(cn);
             Object.keys(m.main).forEach(k => { if (String(m.main[k]) === String(examId)) { __clearLinkedScores(cn, 'main', k); delete m.main[k]; } });
             Object.keys(m.clinic).forEach(k => { if (String(m.clinic[k]) === String(examId)) { __clearLinkedScores(cn, 'clinic', k); delete m.clinic[k]; } });
+            Object.keys(m.boost || {}).forEach(k => { if (String(m.boost[k]) === String(examId)) { __clearLinkedScores(cn, 'boost', k); delete m.boost[k]; } });
         }
 
         // 연동을 끊을 때, "연동이 채워 넣었던 값"만 되돌린다. 손으로 고친 값은 그대로 둔다.
@@ -1740,6 +1858,16 @@
                         st.examHistory[round] = 0;
                     }
                     if (examLinkCache.main) delete examLinkCache.main[ck];
+                });
+            } else if (kind === 'boost') {
+                const round = Number(key);
+                students.forEach(st => {
+                    const ck = `${st.id}-b${round}`;
+                    const cur = getBoostExamScore(cn, st.id, round);
+                    if (examLinkCache.boost && examLinkCache.boost[ck] != null && Number(cur) === Number(examLinkCache.boost[ck])) {
+                        if (boostScoreDb[cn] && boostScoreDb[cn][st.id]) delete boostScoreDb[cn][st.id][round];
+                    }
+                    if (examLinkCache.boost) delete examLinkCache.boost[ck];
                 });
             } else {
                 const weekNum = Number(key);
@@ -1760,13 +1888,19 @@
             const m = __mapFor(cn);
             if (!examId) { __clearLinkedScores(cn, kind, key); delete m[kind][key]; elcAfterChange(); return; }
             const ex = findExam(examId);
-            const want = kind === 'main' ? 'mock' : 'clinic';
-            if (ex && (ex.category || 'mock') !== want) {
+            const cat = ex ? (ex.category || 'mock') : 'mock';
+            // 직전보강 자리는 '직전보강'뿐 아니라 '실전모의고사'로 등록된 시험지도 그대로 받는다
+            // (분석앱에서 유형을 일일이 바꿔 주지 않아도 되도록)
+            const catOk = kind === 'main' ? cat === 'mock'
+                : (kind === 'boost' ? (cat === 'boost' || cat === 'mock') : cat === 'clinic');
+            const slotName = kind === 'main' ? '차시 실전모의고사' : (kind === 'boost' ? '직전보강 실전모의고사' : '클리닉 시험');
+            const slotWhere = kind === 'main' ? '차시별 그래프' : (kind === 'boost' ? '직전보강 점수' : '클리닉 일지');
+            if (ex && !catOk) {
                 const ok = confirm(
                     `⚠️ 유형이 맞지 않습니다.\n\n` +
                     `선택한 시험지: "${ex.title}" → 유형 [${examCatLabel(ex.category)}]\n` +
-                    `연동하려는 자리: ${kind === 'main' ? '차시 실전모의고사' : '클리닉 시험'}\n\n` +
-                    `이대로 연동하면 ${kind === 'main' ? '차시별 그래프' : '클리닉 일지'}에 이 점수가 들어갑니다.\n` +
+                    `연동하려는 자리: ${slotName}\n\n` +
+                    `이대로 연동하면 ${slotWhere}에 이 점수가 들어갑니다.\n` +
                     `그래도 진행할까요?`
                 );
                 if (!ok) { renderExamLinkCenter(); return; }
@@ -1794,7 +1928,7 @@
             const cn = elcClass;
             const m = __mapFor(cn);
             const used = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
-            const pending = { main: {}, clinic: {} };
+            const pending = { main: {}, clinic: {}, boost: {} };
             const pick = (want) => sntExams
                 .filter(e => e.class_name === cn && (e.category || 'mock') === want)
                 .filter(e => !used.has(String(e.id)) && !m.ignore.some(x => String(x) === String(e.id)))
@@ -1818,7 +1952,16 @@
                     if (clinicPool.length) pending.clinic[g.weekNum] = clinicPool.shift().id;
                 });
 
-            const n = Object.keys(pending.main).length + Object.keys(pending.clinic).length;
+            // 직전보강: '직전보강' 유형으로 등록된 시험지만 후보로 본다
+            //  (실모 유형까지 끌어오면 차시 실모 자리에 들어갈 시험지를 빼앗아 간다)
+            const boostPool = pick('boost');
+            const bRounds = boostRoundsInUse(cn);
+            for (let r = 1; r <= bRounds; r++) {
+                if (m.boost[String(r)]) continue;
+                if (boostPool.length) pending.boost[String(r)] = boostPool.shift().id;
+            }
+
+            const n = Object.keys(pending.main).length + Object.keys(pending.clinic).length + Object.keys(pending.boost).length;
             if (n === 0) { alert('자동으로 제안할 만한 빈 칸이 없습니다.\n(이미 다 연동됐거나, 후보 시험지가 없습니다)'); return; }
             elcPending = pending;
             renderExamLinkCenter();
@@ -1828,6 +1971,7 @@
             const m = __mapFor(elcClass);
             Object.keys(elcPending.main).forEach(k => { __detachExamEverywhere(elcClass, elcPending.main[k]); m.main[k] = elcPending.main[k]; });
             Object.keys(elcPending.clinic).forEach(k => { __detachExamEverywhere(elcClass, elcPending.clinic[k]); m.clinic[k] = elcPending.clinic[k]; });
+            Object.keys(elcPending.boost || {}).forEach(k => { __detachExamEverywhere(elcClass, elcPending.boost[k]); m.boost[k] = elcPending.boost[k]; });
             elcPending = null;
             elcAfterChange();
         }
@@ -1848,19 +1992,21 @@
         }
 
         function __elcOptionsHtml(kind, selectedId, isPending) {
-            const want = kind === 'main' ? 'mock' : 'clinic';
+            const want = kind === 'main' ? 'mock' : (kind === 'boost' ? 'boost' : 'clinic');
+            // 직전보강 자리에서는 '실전모의고사' 유형도 정상 후보로 본다(경고 표시 안 함)
+            const fits = c => kind === 'boost' ? (c === 'boost' || c === 'mock') : c === want;
             const list = sntExams
                 .filter(e => elcShowAllClasses || e.class_name === elcClass)
                 .slice()
                 .sort((a, b) => {
-                    const ap = (a.category || 'mock') === want ? 0 : 1, bp = (b.category || 'mock') === want ? 0 : 1;
+                    const ap = fits(a.category || 'mock') ? 0 : 1, bp = fits(b.category || 'mock') ? 0 : 1;
                     if (ap !== bp) return ap - bp;
                     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
                 });
             let html = `<option value="">— 연동 안 함 —</option>`;
             list.forEach(e => {
                 const p = examProgress(e.id);
-                const mismatch = (e.category || 'mock') !== want ? ' ⚠️' : '';
+                const mismatch = fits(e.category || 'mock') ? '' : ' ⚠️';
                 const otherClass = e.class_name !== elcClass ? ` · ${e.class_name}` : '';
                 const sel = String(e.id) === String(selectedId) ? ' selected' : '';
                 html += `<option value="${__escAttr(e.id)}"${sel}>[${examCatLabel(e.category)}]${mismatch} ${__escHtml(e.title)} · 채점 ${p.done}/${p.total}${__escHtml(otherClass)}</option>`;
@@ -1957,8 +2103,23 @@
                 });
             }
 
+            // ── 직전보강 실전모의고사 ──
+            const bCfg = getBoostConfig(cn);
+            const bRoundsN = boostRoundsInUse(cn);
+            let boostHtml = `<div class="text-[11px] font-black text-sky-700 mt-4 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt"></i> 직전보강 실전모의고사
+                    <span class="text-[9px] font-bold text-slate-400">→ 직전보강 점수로만 들어갑니다 (차시 실모 회차 번호는 안 밀림)</span>
+                </div>`;
+            if (bRoundsN === 0) {
+                boostHtml += `<div class="text-[10px] text-slate-400 font-bold py-3 leading-relaxed">이 반은 직전보강을 실시하지 않는 것으로 되어 있습니다.<br>원장페이지 <b>[직전보강 실전모의고사]</b> 카드에서 먼저 체크하고 회차 수(1~5회)를 정해 주세요.</div>`;
+            } else {
+                for (let r = 1; r <= bRoundsN; r++) {
+                    boostHtml += __elcRow('boost', String(r), `직전보강 ${r}회`, `${bCfg.weekNum}주차`);
+                }
+            }
+
             // 미분류: 이 반 시험지 중 어디에도 연동 안 되고 무시도 안 한 것
-            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
+            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic), ...Object.values(m.boost || {})].map(String));
             const unclassified = sntExams.filter(e => e.class_name === cn
                 && !mapped.has(String(e.id))
                 && !m.ignore.some(x => String(x) === String(e.id)));
@@ -2009,7 +2170,7 @@
                     <button onclick="elcApplyPending()" class="bg-amber-500 hover:bg-amber-600 text-white font-black px-3 py-1.5 rounded-lg text-[10px] cursor-pointer">✓ 제안 적용</button>
                 </div>` : '';
 
-            body.innerHTML = head + mainHtml + clinicHtml + uncHtml + pendBar;
+            body.innerHTML = head + mainHtml + clinicHtml + boostHtml + uncHtml + pendBar;
         }
 
         /* ── 점수 칸 상태 뱃지 ──
@@ -2208,7 +2369,7 @@
            저장은 이미 persistState에서 막히지만, 눌러도 아무 일이 없으면 혼란스러우므로
            값을 바꾸는 요소는 아예 못 만지게 하고 위험한 버튼은 감춥니다.
            반/학생/차시 전환처럼 '보기 위한' 조작은 그대로 둡니다.            */
-        const __VIEWER_DANGER = /executeDelete|deleteExam|executeDeploy|doUpdatePassword|sendBulk|openBulkReport|openDirectorReportSmsTerminal|__bulkPersonalizedSend|archiveSeason|executeArchive|executeRestore|elc[A-Z]|openExamLinkCenter|openEditStudent|executeAddStudent|addStudent|handleSeasonMaxWeeks|applyStartD|toggleWtNotHeld|setCurrentActiveWeek|executeSave|syncMemoryField|setExamScoreManual|setClinic|executePublishNotice|bulkSetClinicAtt|sendClassBroadcast|executeFinalSmsBroadcast|executeRegisterNewStudent|previewBulkRoster|previewScorePaste|commitScorePaste|commitBulkRoster|toggleAllBroadcastTargets|setBroadcastMode|sendAppLink|executeSendAppLink/;
+        const __VIEWER_DANGER = /executeDelete|deleteExam|executeDeploy|doUpdatePassword|sendBulk|openBulkReport|openDirectorReportSmsTerminal|__bulkPersonalizedSend|archiveSeason|executeArchive|executeRestore|elc[A-Z]|openExamLinkCenter|openEditStudent|executeAddStudent|addStudent|handleSeasonMaxWeeks|applyStartD|toggleWtNotHeld|setCurrentActiveWeek|executeSave|syncMemoryField|setExamScoreManual|setClinic|setBoost|executePublishNotice|bulkSetClinicAtt|sendClassBroadcast|executeFinalSmsBroadcast|executeRegisterNewStudent|previewBulkRoster|previewScorePaste|commitScorePaste|commitBulkRoster|toggleAllBroadcastTargets|setBroadcastMode|sendAppLink|executeSendAppLink/;
         const __VIEWER_KEEP_IDS = ['global-class-filter-select', 'global-student-select', 'staff-login-email', 'staff-login-password'];
 
         function applyViewerLock() {
@@ -2257,11 +2418,12 @@
             const m = __mapFor(cn);
             const nMain = Object.keys(m.main).filter(k => m.main[k]).length;
             const nClinic = Object.keys(m.clinic).filter(k => m.clinic[k]).length;
-            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic)].map(String));
+            const nBoost = Object.keys(m.boost || {}).filter(k => m.boost[k]).length;
+            const mapped = new Set([...Object.values(m.main), ...Object.values(m.clinic), ...Object.values(m.boost || {})].map(String));
             const unc = sntExams.filter(e => e.class_name === cn && !mapped.has(String(e.id))
                 && !m.ignore.some(x => String(x) === String(e.id))).length;
             if (sntLoadError) { box.innerHTML = `<span class="text-rose-600">⚠️ 분석앱 연결 실패 — 연동 센터에서 확인하세요</span>`; return; }
-            box.innerHTML = `[${__escHtml(cn)}] 차시 실모 <b class="text-rose-600">${nMain}</b>개 · 클리닉 <b class="text-purple-600">${nClinic}</b>개 연동됨`
+            box.innerHTML = `[${__escHtml(cn)}] 차시 실모 <b class="text-rose-600">${nMain}</b>개 · 클리닉 <b class="text-purple-600">${nClinic}</b>개 · 직전보강 <b class="text-sky-600">${nBoost}</b>개 연동됨`
                 + (unc > 0 ? ` · <b class="text-amber-600">미분류 ${unc}개</b>` : ` · 미분류 없음 👍`);
         }
 
@@ -2492,6 +2654,75 @@
             `;
         }
 
+        /* ── 원장 직전보강(직보) 실모 관리 ──
+           시험 직전에 한 번만 하는 보강이라 반(시즌)당 한 자리만 둔다.
+           [실시] 체크 → 회차 수(1~5) → 학생별 점수 입력.
+           회차 수를 줄여도 이미 들어간 점수·연동은 지워지지 않는다(칸이 계속 보임). */
+        function buildDirectorBoostExamManager() {
+            const zone = document.getElementById('dr-boost-exam-zone'); if (!zone) return;
+            const cn = currentGlobalClassFilter;
+            const students = studentDb.filter(s => s.className === cn);
+            const groups = getClinicWeekGroups(getClassMaxWeeks(cn), cn);
+            if (students.length === 0) {
+                zone.innerHTML = '<div class="text-slate-400 text-[11px] text-center py-3">이 반에 학생이 없습니다.</div>';
+                return;
+            }
+            const cfg = getBoostConfig(cn);
+            const rounds = boostRoundsInUse(cn);
+
+            let roundOpts = '';
+            for (let i = 1; i <= BOOST_MAX_ROUNDS; i++) roundOpts += `<option value="${i}"${i === cfg.rounds ? ' selected' : ''}>${i}회</option>`;
+            const weekOpts = groups.map(g => `<option value="${g.weekNum}"${g.weekNum === cfg.weekNum ? ' selected' : ''}>${g.weekNum}주차</option>`).join('');
+
+            const head = `
+                <div class="flex items-center gap-x-3 gap-y-2 flex-wrap bg-sky-50/70 border border-sky-200 rounded-xl p-2.5">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="setBoostConfig('${__escAttr(cn)}', { enabled: this.checked })" class="w-4 h-4 accent-sky-600">
+                        <span class="text-[11px] font-black text-sky-800">이번 시즌 직전보강 실시</span>
+                    </label>
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                        회차 수
+                        <select onchange="setBoostConfig('${__escAttr(cn)}', { rounds: Number(this.value) })" ${cfg.enabled ? '' : 'disabled'}
+                            class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-800 focus:outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400">${roundOpts}</select>
+                    </label>
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                        진행 주차
+                        <select onchange="setBoostConfig('${__escAttr(cn)}', { weekNum: Number(this.value) })" ${cfg.enabled ? '' : 'disabled'}
+                            class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-800 focus:outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400">${weekOpts}</select>
+                    </label>
+                </div>`;
+
+            let bodyHtml;
+            if (rounds === 0) {
+                bodyHtml = `<div class="text-[10px] text-slate-400 font-bold py-3 leading-relaxed">직전보강을 하는 시즌이면 위 <b>[이번 시즌 직전보강 실시]</b>를 켜 주세요.<br>회차 수를 고르면 학생별 점수 입력칸이 열립니다.</div>`;
+            } else {
+                const gridHtml = students.map(st => {
+                    let inputs = '';
+                    for (let r = 1; r <= rounds; r++) {
+                        const sc = getBoostExamScore(cn, st.id, r);
+                        inputs += `<div class="flex items-center gap-0.5">
+                            <span class="text-[8px] text-sky-600 font-black shrink-0 w-5">${r}회</span>
+                            <input type="number" step="0.1" value="${sc !== null ? sc : ''}" placeholder="-"
+                                onchange="setBoostExamScore('${__escAttr(cn)}', ${st.id}, ${r}, this.value === '' ? null : Number(this.value))"
+                                class="w-12 border border-sky-200 text-center text-[10px] font-black text-sky-700 rounded bg-white px-1 py-0.5">
+                        </div>`;
+                    }
+                    return `<div class="p-1.5 rounded-lg border bg-white border-slate-200 space-y-1">
+                        <div class="text-[10px] font-bold text-slate-700 truncate">${__escHtml(st.name)}</div>
+                        <div class="grid grid-cols-2 gap-1">${inputs}</div>
+                    </div>`;
+                }).join('');
+                bodyHtml = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">${gridHtml}</div>`;
+            }
+
+            zone.innerHTML = head + bodyHtml + `
+                <div class="text-[9px] text-slate-400 font-bold mt-1 leading-relaxed">
+                    · 시험 직전에 한 번만 보는 시험이라 <b>반(시즌)당 한 자리</b>입니다. 여기 넣은 점수는 차시 실모 회차 번호에 영향을 주지 않습니다.<br>
+                    · <b>진행 주차</b>는 학부모 리포트 문자에 직전보강 성적이 붙는 위치입니다(그 주차 리포트에만 들어감).<br>
+                    · 분석지를 붙이려면 [시험 분석앱 연동 센터] → <b>직전보강 실전모의고사</b> 칸에서 회차별로 시험지를 골라 주세요.
+                </div>`;
+        }
+
         function bulkSetClinicAtt(className, weekNum, value) {
             const students = studentDb.filter(s => s.className === className);
             if (!clinicWeeklyDb[className]) clinicWeeklyDb[className] = {};
@@ -2550,6 +2781,23 @@
             const head = '<div class="text-[11px] font-black text-slate-700 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> 클리닉 주차별 누적 이력</div>';
             zone.innerHTML = head + (rows ||
                 '<div class="p-2 rounded-lg border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-400">아직 기록된 클리닉 이력이 없습니다.</div>');
+        }
+
+        // ── 학생/학부모 포털: 직전보강 실모 성적 ──
+        function renderBoostHistoryZone(zoneId, student) {
+            const zone = document.getElementById(zoneId); if (!zone) return;
+            if (!student) { zone.innerHTML = ''; return; }
+            const list = boostScoresOf(student.className, student.id);
+            if (list.length === 0) { zone.innerHTML = ''; return; }
+            const lines = list.map(b => {
+                const avgStr = b.avg !== null ? ` <span class="text-slate-400">(반평균 ${b.avg}점)</span>` : '';
+                return `<div class="flex justify-between items-center py-0.5">
+                    <span class="text-[10px] font-bold text-slate-600">${b.round}회</span>
+                    <span class="text-[10px] font-black text-sky-700">${b.score}점${avgStr}</span>
+                </div>`;
+            }).join('');
+            zone.innerHTML = '<div class="text-[11px] font-black text-slate-700 mb-1"><i class="fa-solid fa-bolt text-sky-600 mr-1"></i> 직전보강 실전모의고사</div>'
+                + `<div class="p-2 rounded-lg border bg-sky-50 border-sky-200">${lines}</div>`;
         }
 
         // 차시별 과제 (원장이 입력 → 학생/학부모 포털에 표시). 형태: weeklyHwDb[반이름][일차] = "과제 내용"
@@ -3048,13 +3296,13 @@
                         <button data-classname="${className}" onclick="executeDeleteClass(this.dataset.classname)" class="text-[9px] font-bold text-rose-400 hover:text-white hover:bg-rose-500 border border-rose-200 hover:border-rose-500 px-1.5 py-0.5 rounded cursor-pointer transition-all"><i class="fa-solid fa-trash mr-0.5"></i>삭제</button>
                     </div>
                     <div class="space-y-1">
-                        <div class="flex items-center gap-1"><span class="text-[8px] text-amber-600 font-bold w-14 shrink-0">🎬 오답영상</span><input type="text" id="linkinput-drive-${idx}" value="${classLinksDb[className].driveUrl}" placeholder="구글 드라이브 폴더 주소 (https://...)" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-amber-600 font-mono text-[9px] focus:outline-none focus:border-amber-400"></div>
+                        <div class="flex items-center gap-1" style="display:none"><span class="text-[8px] text-amber-600 font-bold w-14 shrink-0">📁 드라이브</span><input type="text" id="linkinput-drive-${idx}" value="${classLinksDb[className].driveUrl}" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-amber-600 font-mono text-[9px] focus:outline-none focus:border-amber-400"></div>
                         <div class="flex items-center gap-1"><span class="text-[8px] text-teal-600 font-bold w-14 shrink-0">📊 과제엑셀</span><input type="text" id="linkinput-hwsheet-${idx}" value="${classHwSheets[className] || ''}" placeholder="과제완성도 점검 엑셀 주소" class="flex-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-teal-600 font-mono text-[9px] focus:outline-none focus:border-teal-400"></div>
                     </div>
-                    <div class="text-[8px] text-slate-400 font-mono pt-1 border-t border-slate-200">현재 적용됨 · 오답영상: ${driveDisp} · 과제엑셀: ${hwSheetDisp}</div>
+                    <div class="text-[8px] text-slate-400 font-mono pt-1 border-t border-slate-200">현재 적용됨 · 과제엑셀: ${hwSheetDisp}</div>
                     <div class="flex items-center gap-1 pt-1">
                         <button data-classname="${className}" onclick="executeSaveClassLinks(this.dataset.classname, ${idx})" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">💾 저장 및 적용</button>
-                        <button data-classname="${className}" onclick="testOpenClassLink(this.dataset.classname, 'driveUrl')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 오답영상</button>
+                        <button data-classname="${className}" onclick="testOpenClassLink(this.dataset.classname, 'driveUrl')" style="display:none" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 드라이브</button>
                         <button data-classname="${className}" onclick="testOpenClassHwSheet(this.dataset.classname)" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold px-1.5 py-1 rounded text-[9px] cursor-pointer whitespace-nowrap">🔗 과제엑셀</button>
                     </div>
                 `; container.appendChild(card);
@@ -3904,6 +4152,8 @@
                 classScheduleConfig,
                 clinicWeeklyDb,
                 clinicExamDb,
+                boostConfigDb,
+                boostScoreDb,
                 globalTimelineConfig,
                 globalMockQuestionsGoogleSheet,
                 classMaxWeeksDb,
@@ -3963,6 +4213,8 @@
                 if (data.scheduleStartDay) { /* legacy: migrate global scheduleStartDay to per-class */ }
                 if (data.clinicWeeklyDb && typeof data.clinicWeeklyDb === 'object') clinicWeeklyDb = data.clinicWeeklyDb;
                 if (data.clinicExamDb && typeof data.clinicExamDb === 'object') clinicExamDb = data.clinicExamDb;
+                if (data.boostConfigDb && typeof data.boostConfigDb === 'object') boostConfigDb = data.boostConfigDb;
+                if (data.boostScoreDb && typeof data.boostScoreDb === 'object') boostScoreDb = data.boostScoreDb;
                 weeklyHwDb = data.weeklyHwDb || {};
                 accessTokens = data.accessTokens || {};
                 if (Array.isArray(data.globalTimelineConfig) && data.globalTimelineConfig.length) globalTimelineConfig = data.globalTimelineConfig;
@@ -4288,6 +4540,7 @@
             applyViewerLock();
             if (isViewer()) setTimeout(applyViewerLock, 0);
             let hasClinicMgr = document.getElementById('dr-clinic-attendance-zone'); if(hasClinicMgr) buildDirectorClinicAttendanceManager();
+            let hasBoostMgr = document.getElementById('dr-boost-exam-zone'); if(hasBoostMgr) buildDirectorBoostExamManager();
             let activeTimeline = getClassTimeline(currentGlobalClassFilter).find(c => c.weekIdx === currentSelectedWeekIdx); if(!activeTimeline) return;
             let currentBooks = ((weeklyBooksDb[currentGlobalClassFilter] || {})[currentSelectedWeekIdx]) || [];
 
@@ -4441,14 +4694,6 @@
                 const prSheet = document.getElementById('pr-google-sheet-link-btn');
                 if(prSheet){ prSheet.href = targetSt.sheetUrl || "#"; prSheet.style.display = PORTAL_UI.showTextbookLink ? '' : 'none'; }
 
-                // 오답영상(구글 드라이브) 링크 — 반별 주소가 등록된 반에서만 버튼이 보입니다
-                (function renderWrongVideoLink() {
-                    const dvUrl = (links.driveUrl || '').trim();
-                    const dvOk  = PORTAL_UI.showWrongVideoLink && dvUrl.startsWith('http');
-                    const btn = document.getElementById('st-drive-link-btn');
-                    if (btn) { btn.href = dvOk ? dvUrl : '#'; btn.style.display = dvOk ? '' : 'none'; }
-                })();
-
                 ['st-notice-display-zone', 'pr-notice-display-zone'].forEach(id => { const el = document.getElementById(id); if(el) el.innerText = targetSt ? __getClassNotice(targetSt.className) : currentGlobalNoticeText; });
 
                 // 이번 주 과제 (원장 배포 → 학생/학부모 포털)
@@ -4565,6 +4810,16 @@
                                 </div>`;
                             });
                             if (clinicExamLines) examLines += `<div class="border-t border-slate-200 mt-1 pt-1">${clinicExamLines}</div>`;
+                            // 직전보강 실모 추가
+                            let boostLinesHtml = '';
+                            boostScoresOf(targetSt.className, targetSt.id).forEach(b => {
+                                const bAvgStr = b.avg !== null ? ` (반평균: ${b.avg}점)` : '';
+                                boostLinesHtml += `<div class="flex justify-between items-center py-1.5">
+                                    <span class="text-[11px] font-bold text-sky-700">직전보강 ${b.round}회</span>
+                                    <span class="text-[11px] font-black text-sky-700">${b.score}점${bAvgStr}</span>
+                                </div>`;
+                            });
+                            if (boostLinesHtml) examLines += `<div class="border-t border-slate-200 mt-1 pt-1">${boostLinesHtml}</div>`;
                             cumList.innerHTML = `<div class="border-t border-slate-200 pt-3 mt-1"><div class="text-[11px] font-black text-rose-700 mb-2"><i class="fa-solid fa-list-ol mr-1"></i> 회차별 점수</div>${examLines}</div>`;
                         }
                         // 학부모 포털에도 동일 렌더링
@@ -4616,6 +4871,8 @@
                 // 클리닉 누적 이력 렌더링 (학생·학부모)
                 renderClinicHistoryZone('st-clinic-history-zone', targetSt);
                 renderClinicHistoryZone('pr-clinic-history-zone', targetSt);
+                renderBoostHistoryZone('st-boost-history-zone', targetSt);
+                renderBoostHistoryZone('pr-boost-history-zone', targetSt);
 
                 // 학부모 가변 실모 3개 연산 사출
                 const prReportZone = document.getElementById('parent-report-zone');
@@ -5124,6 +5381,20 @@
             let clinicWeekNote = ((clinicNotesDb[st.className] || {})[`w${weekNum}`] || '').trim();
             if (clinicWeekNote) section2 += `\n진행 내용 : ${clinicWeekNote}`;
 
+            // ── ■ 직전보강 실전모의고사 ──
+            //   원장이 지정한 '진행 주차' 리포트에만, 점수가 있는 학생에게만 붙는다.
+            let sectionBoost = '';
+            if (Number(getBoostConfig(st.className).weekNum) === Number(weekNum)) {
+                const __boostList = boostScoresOf(st.className, st.id);
+                if (__boostList.length) {
+                    const __bLines = __boostList.map(b => {
+                        const avgStr = b.avg !== null ? ` (평균 ${b.avg})` : '';
+                        return `${b.round}회 : ${b.score}점${avgStr}`;
+                    }).join('\n');
+                    sectionBoost = `\n\n■ 직전보강 실전모의고사\n${__bLines}`;
+                }
+            }
+
             // ── ■ 수업 일지 ──
             let section3 = '';
             let classWeekNote = ((classNotesDb[st.className] || {})[`w${weekNum}`] || '').trim();
@@ -5131,7 +5402,7 @@
 
             let __greeting = __fillTemplate(smsTemplates.reportGreeting, { 이름: st.name, 학교: st.school, 일차: `${weekNum}주차` });
             let __closing = __fillTemplate(smsTemplates.reportClosing, { 이름: st.name, 학교: st.school, 일차: `${weekNum}주차` });
-            return `[SNT 조창성&이승준]\n\n${__greeting}\n\n${section1}\n\n${section2}${section3}\n\n${__closing}`;
+            return `[SNT 조창성&이승준]\n\n${__greeting}\n\n${section1}\n\n${section2}${sectionBoost}${section3}\n\n${__closing}`;
         }
 
         function openDirectorReportSmsTerminal(id) {
